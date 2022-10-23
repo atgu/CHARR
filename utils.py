@@ -141,7 +141,7 @@ def compute_charr(
 
     # Filter to variant calls with GQ above min_gq and DP within the range (min_dp, max_dp)
     mt = mt.filter_entries(
-        mt.LGT.is_hom_var() & (mt.GQ > min_gq) & (mt.DP > min_dp) & (mt.DP < max_dp)
+        mt.LGT.is_hom_var() & (mt.GQ >= min_gq) & (mt.DP >= min_dp) & (mt.DP <= max_dp)
     )
 
     # Compute CHARR
