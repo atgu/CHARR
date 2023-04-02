@@ -47,8 +47,8 @@ def get_var_dict_from_gvcf(input_gvcf: str):
     return var_dict
 
 def write_var_dict_from_gvcf(output: str, gvcf_dict: dict):
-    f = open(f"{output}", "wb")
-    pickle.dump(gvcf_dict, f)
+    with open(output, 'wb') as f:
+        pickle.dump(gvcf_dict, f)
     f.close()
 
 def read_pickle_dict(dict_path:str):
@@ -65,14 +65,14 @@ def run_gvcf_dict(b: hb.batch, gvcf_file_name: str, gvcf_path: Tuple):
         input_gvcf_dict = b.read_input(gvcf_dict_path)
         gvcf_dict = j.call(read_pickle_dict, input_gvcf_dict)
     else:
-        input_gvcf = b.read_input_group(**{"gvcf":gvcf_path[0], "index": f'{gvcf_path[1]}'})
+        input_gvcf = b.read_input_group(gvcf=gvcf_path[0], index=gvcf_path[1])
 
         gvcf_dict = j.call(get_var_dict_from_gvcf, input_gvcf.gvcf)
         j.call(
             write_var_dict_from_gvcf, j.ofile, gvcf_dict
         )
         b.write_output(j.ofile, gvcf_dict_path)
-    return gvcf_dict
+    return gvcf_dict, j;
 
 def write_contam_free_cram_file(
     gvcf_dict: dict,

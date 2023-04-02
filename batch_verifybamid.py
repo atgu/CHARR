@@ -22,27 +22,6 @@ logging.basicConfig(format="%(levelname)s (%(name)s %(lineno)s): %(message)s")
 logger = logging.getLogger("VerifyBamIDn")
 logger.setLevel(logging.INFO)
 
-def file_exists(path: str) -> bool:
-    """
-    Check if the object exists, where the object can be:
-        * local file
-        * local directory
-        * Google Storage object
-        * Google Storage URL representing a *.mt or *.ht Hail data,
-          in which case it will check for the existence of a
-          *.mt/_SUCCESS or *.ht/_SUCCESS file.
-    :param path: path to the file/directory/object/mt/ht
-    :return: True if the object exists
-    """
-    if path.startswith('gs://'):
-        bucket = path.replace('gs://', '').split('/')[0]
-        path = path.replace('gs://', '').split('/', maxsplit=1)[1]
-        path = path.rstrip('/')  # '.mt/' -> '.mt'
-        if any(path.endswith(f'.{suf}') for suf in ['mt', 'ht']):
-            path = os.path.join(path, '_SUCCESS')
-        gs = storage.Client()
-        return gs.get_bucket(bucket).get_blob(path)
-    return os.path.exists(path)
 
 def check_contam(
     contamination_underestimation_factor: float,
@@ -86,65 +65,64 @@ def run_verifybamid(
         b,
         input_cram_path: str,
         input_crai_path: str,
-       #  cram_project_id: str,
+        cram_project_id: str,
         ref_fasta_path: str,
         contamination_sites_path: str,
         output_path: str,
         output_prefix: str,
+        depend_on: hb.batch.job=None,
         disable_sanity_check: bool=True,
 ):
-    # if file_exists(input_cram_path):
-    #     bucket_name = input_cram_path.split('/')[2]
-    #     client: storage.client.Client = storage.Client(cram_project_id)
-    #     bucket: storage.bucket.Bucket = client.get_bucket(bucket_name)
-    #     bam_size = bucket.get_blob(input_cram_path.replace(f'gs://{bucket_name}/', '')).size
-    #     logger.info(
-    #         f'Bam file size: {bam_size/(1024**3)} GiB ... '
-    #     )
-    # else:
-    #     raise ValueError(
-    #         f'Input bam file {input_cram_path} does not exist!'
-    #     )
-    #
-    # if file_exists(ref_fasta_path):
-    #     client: storage.client.Client = storage.Client('bigquery-public-data')
-    #     bucket: storage.bucket.Bucket = client.get_bucket('gcp-public-data--broad-references')
-    #     ref_size = bucket.get_blob('hg38/v0/Homo_sapiens_assembly38.fasta').size
-    #     logger.info(
-    #         f'Reference file size: {ref_size/(1024**3)} GiB ... '
-    #     )
-    # else:
-    #     raise ValueError(
-    #         f'Input reference file {ref_fasta_path} does not exist!'
-    #     )
+    if hl.hadoop_exists(input_cram_path):
+        bucket_name = input_cram_path.split('/')[2]
+        client: storage.client.Client = storage.Client(cram_project_id)
+        bucket: storage.bucket.Bucket = client.get_bucket(bucket_name)
+        bam_size = bucket.get_blob(input_cram_path.replace(f'gs://{bucket_name}/', '')).size
+        logger.info(
+            f'Cram file size: {bam_size/(1024**3)} GiB ... '
+        )
+    else:
+        raise ValueError(
+            f'Input cram file {input_cram_path} does not exist!'
+        )
+
+    if hl.hadoop_exists(ref_fasta_path):
+        client: storage.client.Client = storage.Client('bigquery-public-data')
+        bucket: storage.bucket.Bucket = client.get_bucket('gcp-public-data--broad-references')
+        ref_size = bucket.get_blob('hg38/v0/Homo_sapiens_assembly38.fasta').size
+        logger.info(
+            f'Reference file size: {ref_size/(1024**3)} GiB ... '
+        )
+    else:
+        raise ValueError(
+            f'Input reference file {ref_fasta_path} does not exist!'
+        )
 
 
     ncpu = 8  # ~ 8G/core ~ 64G
+    disk_size = ceil((bam_size + ref_size)/ (1024**3)) + 30
+    # disk_size = 40
     # path, name = input_cram_path.rsplit('/', 1)
     # output_prefix = name[:-5].split('.')[0]
 
     j = b.new_job(f'Run_VerifyBamID_{output_prefix}')
-    j.image(IMAGE)
-    j.memory('highmem')
-    j.cpu(ncpu)
-    # disk_size = ceil((bam_size + ref_size)/ (1024**3)) + 30
-    disk_size = 40
+    j.image(IMAGE).cpu(ncpu).storage(f'{disk_size}G').memory('highmem')
+    if depend_on is not None:
+        j.depends_on(depend_on)
+
     logger.info(
         f'Requesting storage: {disk_size} GiB ... '
     )
-    j.storage(f'{disk_size}G')
     j.declare_resource_group(
         **{f'{output_prefix}': {'selfSM': f'{output_prefix}.selfSM'}}
     )
-    j.command('ls')
 
-    # input_bam = b.read_input_group(
-    #         **{
-    #             'file': input_cram_path,
-    #             'index': input_crai_path,
-    #         }
-    #     )
-    # j.command(f'ls {input_bam}')
+    input_cram = b.read_input_group(
+            **{
+                'file': input_cram_path,
+                'index': input_crai_path,
+            }
+        )
 
     ref_fasta = b.read_input_group(
             **{
@@ -167,7 +145,7 @@ def run_verifybamid(
         --Verbose \\
         --NumPC 4 \\
         --Output {j[output_prefix]} \\
-        --BamFile {input_cram_path} \\
+        --BamFile {input_cram.file} \\
         --Reference {ref_fasta['file']} \\
         --UDPath {contamination_sites['ud']} \\
         --MeanPath {contamination_sites['mu']} \\
@@ -175,7 +153,6 @@ def run_verifybamid(
         {"--DisableSanityCheck" if disable_sanity_check else ""} ;
         """
     )
-    j.command('ls')
 
     if output_path:
         b.write_output(j[output_prefix], f'{output_path}{output_prefix}')
@@ -183,8 +160,6 @@ def run_verifybamid(
 
 
 def main(args):
-    from datetime import date
-    # hl.init(log=f"//verifybamid_{date.today()}.log", default_reference="GRCh38")
     hl.init(default_reference="GRCh38")
 
     try:
@@ -218,9 +193,7 @@ def main(args):
             b.run()
         else:
             ht = hl.import_table('gs://gnomad-wenhan/verifybamid/gnomad_v3_hgdp_low_contam.txt').key_by('s')
-            cram_paths = ht.to_pandas().final_cram_path.tolist()
-            crai_paths = ht.to_pandas().final_crai_path.tolist()
-            sample_ids = ht.to_pandas().s.tolist()
+            cram_data = ht.aggregate(hl.struct(cram_path=hl.agg.collect(ht.final_cram_path), crai_path=hl.agg.collect(ht.final_crai_path), sample_ids=hl.agg.collect(ht.s)))
             if args.run_verifybamid:
                 logger.info(
                     f'Starting hail Batch with the project {BILLING_PROJECT}, '
@@ -236,11 +209,11 @@ def main(args):
                     backend=backend,
                 )
 
-                for i in range(0, hl.eval(ht.count())):
+                for cram_path, crai_path in zip(cram_data.cram_path, cram_data.crai_path):
                     run_verifybamid(
                         b=b,
-                        input_cram_path=cram_paths[i],
-                        input_crai_path=crai_paths[i],
+                        input_cram_path=cram_path,
+                        input_crai_path=crai_path,
                         ref_fasta_path=REF_FASTA,
                         contamination_sites_path=CONTAM_SITES,
                         output_path=f'{tmp_bucket}contam_selSM/',
@@ -249,20 +222,14 @@ def main(args):
 
                 b.run()
             elif args.get_sum_table:
-                contam_names = [x.split('/')[-1][:-5] for x in cram_paths]
-                contam_paths = [tmp_bucket + x.split('/')[-1][:-5] + '.selfSM' for x in cram_paths]
+                contam_names = [x.split('/')[-1][:-5] for x in cram_data.cram_path]
+                contam_paths = [tmp_bucket + x.split('/')[-1][:-5] + '.selfSM' for x in cram_data.cram_path]
                 contam_est = []
                 for name in contam_names:
                     contam_est.append(check_contam(args.contamination_underestimation_factor, tmp_bucket, name))
-                contam_df = pd.DataFrame(
-                    {'s': sample_ids,
-                     'final_cram_path': cram_paths,
-                     'final_crai_path': crai_paths,
-                     'contam_path': contam_paths,
-                     'recomputed_contam_rate': contam_est,
-                     })
-                contam_ht = hl.Table.from_pandas(contam_df, key=['s'])
-                contam_ht.write(f'{tmp_bucket}/gnomad_v3_contam_rate_recomputed_hgdp_low_contam.ht', overwrite=True)
+                cram_data = cram_data.annotate(recomputed_contam_rate = contam_est,
+                                               contam_path = contam_paths)
+                cram_data.write(f'{tmp_bucket}/{args.output_contam_table_name}.ht', overwrite=True)
 
     finally:
         logger.info("Copying log to logging bucket...")
@@ -272,15 +239,16 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input-cram-path', type=str)
-    parser.add_argument('--input-crai-path', type=str)
-    parser.add_argument('--cram-project-id', type=str, default="broad-mpg-gnomad")
-    parser.add_argument('--bucket', type=str, default="gnomad-wenhan")
+    parser.add_argument('--input-cram-path')
+    parser.add_argument('--input-crai-path')
+    parser.add_argument('--cram-project-id', default="broad-mpg-gnomad")
+    parser.add_argument('--bucket', default="gnomad-wenhan")
     parser.add_argument('--disable-sanity-check', action="store_true")
     parser.add_argument('--run-verifybamid', action="store_true")
     parser.add_argument('--get-sum-table', action="store_true")
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--contamination-underestimation-factor', type=float, default=1)
+    parser.add_argument('--output_contam_table_name')
 
 
     args = parser.parse_args()
