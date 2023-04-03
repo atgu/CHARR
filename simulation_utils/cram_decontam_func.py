@@ -88,7 +88,6 @@ def write_contam_free_cram_file(
     pipe.append(
         f"samtools view -C -T {input_ref_fasta['fasta']} -h -o {output_cram_file}", "-."
     )
-    # pipe.append(f"samtools index -o {output_crai_file}", "-.")
     f = pipe.open(f"contam_free.sam", "w")
     ref_fasta = pysam.FastaFile(input_ref_fasta['fasta'])
     for read in cram_in.fetch(chromosome):
@@ -105,7 +104,7 @@ def write_contam_free_cram_file(
         no_indel = True
         for i in range(151):
             var_pos = gvcf_dict[chrom]
-            current_pos = start_pos + i
+            current_pos = start_pos + i + 1
             current_err = 10 ** (-ord(error[i]) / 10)
             if current_pos in var_pos:
                 ref, alt1, alt2, genotype = var_pos[current_pos]
