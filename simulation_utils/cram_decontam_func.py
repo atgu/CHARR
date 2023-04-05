@@ -46,18 +46,21 @@ def get_var_dict_from_gvcf(input_gvcf: str):
             )
     return var_dict
 
+
 def write_var_dict_from_gvcf(output: str, gvcf_dict: dict):
-    with open(output, 'wb') as f:
+    with open(output, "wb") as f:
         pickle.dump(gvcf_dict, f)
     f.close()
 
-def read_pickle_dict(dict_path:str):
+
+def read_pickle_dict(dict_path: str):
     dict = pd.read_pickle(dict_path)
     return dict
 
+
 def run_gvcf_dict(b: hb.batch, gvcf_file_name: str, gvcf_path: Tuple):
     gvcf_dict_path = f"{MY_BUCKET}/gvcf_dicts/{gvcf_file_name}_gvcf_dict.pkl"
-    sample_id = gvcf_file_name.split('.')[0]
+    sample_id = gvcf_file_name.split(".")[0]
     j = b.new_python_job(name=f"Run_gvcf_dict_{sample_id}")
     j._machine_type = "n1-highmem-16"
     j.storage("500Gi")
@@ -68,11 +71,10 @@ def run_gvcf_dict(b: hb.batch, gvcf_file_name: str, gvcf_path: Tuple):
         input_gvcf = b.read_input_group(gvcf=gvcf_path[0], index=gvcf_path[1])
 
         gvcf_dict = j.call(get_var_dict_from_gvcf, input_gvcf.gvcf)
-        j.call(
-            write_var_dict_from_gvcf, j.ofile, gvcf_dict
-        )
+        j.call(write_var_dict_from_gvcf, j.ofile, gvcf_dict)
         b.write_output(j.ofile, gvcf_dict_path)
-    return gvcf_dict, j;
+    return gvcf_dict, j
+
 
 def write_contam_free_cram_file(
     gvcf_dict: dict,
@@ -83,14 +85,16 @@ def write_contam_free_cram_file(
     chromosome: str,
 ):
     print(input_cram_file)
-    cram_in = pysam.AlignmentFile(input_cram_file['cram'], "rc")
+    cram_in = pysam.AlignmentFile(input_cram_file["cram"], "rc")
     pipe = pipes.Template()
     pipe.append(
         f"samtools view -C -T {input_ref_fasta['fasta']} -h -o {output_cram_file}", "-."
     )
     f = pipe.open(f"contam_free.sam", "w")
-    ref_fasta = pysam.FastaFile(input_ref_fasta['fasta'])
+    ref_fasta = pysam.FastaFile(input_ref_fasta["fasta"])
+    j = 0
     for read in cram_in.fetch(chromosome):
+        j+=1
         if read.reference_id < 22:
             chrom = f"chr{read.reference_id + 1}"
         elif read.reference_id == 22:
@@ -100,6 +104,7 @@ def write_contam_free_cram_file(
         start_pos = read.pos
         end_pos = start_pos + 151
         error = read.qual
+        tags = read.tags
         read.query_sequence = ref_fasta.fetch(chrom, start_pos, end_pos)
         no_indel = True
         for i in range(151):
@@ -128,6 +133,10 @@ def write_contam_free_cram_file(
         # If a read overlaps with an indel sites don't write the read out
         if no_indel:
             read.qual = error
+            read.tags = tags
+            if j < 10:
+                print(read)
+                print(read.tostring())
             f.write(read.tostring() + "\n")
     cram_in.close()
     f.close()
