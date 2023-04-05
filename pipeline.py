@@ -56,11 +56,14 @@ def main():
 
     full_contam_free_crams = []
     contam_free_crams = {}
+    contam_free_gvcfs = {}
     i = 0
     for s in samples:
         i += 1
+        s = 'HGDP00768'
         sample_id = s
         contam_free_crams[sample_id] = {}
+        contam_free_gvcfs[sample_id] = {}
         logger.info(f"-------Decontaminating {sample_id}-------")
         input_cram_file = b.read_input_group(
             cram=cram_files[s][0], index=cram_files[s][1]
@@ -72,9 +75,12 @@ def main():
             gvcf_dict, j_gvcf = run_gvcf_dict(b, gvcf_file_name, gvcf_path)
 
         cram_job_depend_list = []
+        gvcf_job_depend_list = []
         for chromosome in CHROMOSOMES:
+            chromosome = 'chr21'
             output_cram_path = f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
-            # logger.info(f'Generating contamination free cram: {sample_id}-{chromosome}...')
+            logger.info(f'Generating contamination free cram: {sample_id}-{chromosome}...')
+            var_call_depend_on=None
             if not hl.hadoop_exists(output_cram_path):
                 j_cram = b.new_python_job(
                     name=f"Run_contam_free_file_{sample_id}_{chromosome}",
@@ -92,11 +98,53 @@ def main():
                 )
                 cram_job_depend_list.append(j_cram)
                 contam_free_crams[sample_id][chromosome] = j_cram.ofile
+                j_reheader = b.new_job(name=f"Reheader_contam_free_file", attributes={'sample_id': sample_id, 'chromosome': chromosome})
+                j_reheader.image(SAMTOOLS_IMAGE).storage("50Gi").memory('10Gi')
+                j_reheader.command(f"samtools reheader {input_cram_file['cram']} {j_cram.ofile} > {j_reheader.ofile1}")
+                j_reheader.command(f'samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}')
+                var_call_depend_on = j_reheader
+                cram_job_depend_list.append(j_reheader)
+                b.write_output(j_reheader.ofile1, output_cram_path)
+                b.write_output(j_reheader.ofile2, f"{output_cram_path}.crai")
 
-                b.write_output(j_cram.ofile, output_cram_path)
+            elif not hl.hadoop_exists(f'{output_cram_path}.crai'):
+                tmp_cram = b.read_input(output_cram_path)
+                logger.info(f'Reheadering contamination free cram: {sample_id}-{chromosome}...')
+                j_reheader = b.new_job(name=f"Reheader_contam_free_file", attributes={'sample_id': sample_id, 'chromosome': chromosome})
+                j_reheader.image(SAMTOOLS_IMAGE).storage("50Gi").memory('10Gi')
+                j_reheader.command(f'ls -l {tmp_cram}')
+                j_reheader.command(f"samtools reheader {input_cram_file['cram']} {tmp_cram} > {j_reheader.ofile1}")
+                j_reheader.command(f'ls -l {tmp_cram}')
+                j_reheader.command(f'ls -l {j_reheader.ofile1}')
+                j_reheader.command(f'samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}')
+                j_reheader.command(f'ls -l {j_reheader.ofile2}')
+                var_call_depend_on = j_reheader
+                cram_job_depend_list.append(j_reheader)
+                b.write_output(j_reheader.ofile1, output_cram_path)
+                b.write_output(j_reheader.ofile2, f"{output_cram_path}.crai")
+
             else:
                 tmp_cram = b.read_input(output_cram_path)
                 contam_free_crams[sample_id][chromosome] = tmp_cram
+
+            if not hl.hadoop_exists(f'{MY_BUCKET}/contam_free/variant-calling/{sample_id}/{sample_id}_{chromosome}.g.vcf'):
+                logger.info(f'Running haplotype caller: {sample_id}-{chromosome}...')
+                input_chrom_cram_file = b.read_input_group(**{'cram': output_cram_path,
+                                              'cram.crai': f'{output_cram_path}.crai'})
+                tmp_gvcf, tmp_job = haplotype_caller_gatk(b=b,
+                                                 depend_on=var_call_depend_on,
+                                                 input_bam=input_chrom_cram_file,
+                                                 ref_fasta=input_ref_fasta,
+                                                 interval_list_file=chromosome,
+                                                 out_dir=f'{MY_BUCKET}/contam_free/',
+                                                 contamination=0.0,
+                                                 bam_filename_no_ext=f'{sample_id}_{chromosome}',
+                                                 storage=40,
+                                                 interval_list_name=None,
+                                                 memory=50)
+                gvcf_job_depend_list.append(tmp_job)
+                contam_free_gvcfs[sample_id][chromosome] = tmp_gvcf
+            break
 
         cram_file_name = cram_files[s][0].split("/")[-1][:-5]
         output_full_cram_path = (
@@ -148,8 +196,8 @@ def main():
                 depend_on=j_cat_depend_on,
                 disable_sanity_check=args.disable_sanity_check,
             )
-        if i == 3:
-            break  # test purpose
+        # if i == 3:
+        break  # test purpose
 
     if args.run_merge_gvcf_files:
         var_call_pipeline(
@@ -208,7 +256,7 @@ def main():
     sample_pairs = hl.Table.from_pandas(
         pd.DataFrame(list(zip(MAIN, CONTAM)), columns=["original", "contaminant"])
     )
-    sample_pairs.write(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht", overwrite=True)
+    # sample_pairs.write(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht", overwrite=True)
 
     mixed_crams = {}
     mixed_gvcfs = {}
@@ -219,14 +267,14 @@ def main():
             # s2 = CONTAM[i]
             s1 = "HGDP00021"
             s2 = "HGDP00105"
-            OUT_BUCKET = f"{MY_BUCKET}/mixing_samples/crams/cram_by_chrom/contam_rate_{int(contam_rate*100)}/{s1}_{s2}"
+            OUT_BUCKET = f"{MY_BUCKET}/mixed_samples/crams/cram_by_chrom/contam_rate_{contam_rate*100}/{s1}_{s2}"
             input_main_cram_file = b.read_input_group(
                 cram=cram_files[s1][0], index=cram_files[s1][1]
             )
             input_contam_cram_file = b.read_input_group(
                 cram=cram_files[s2][0], index=cram_files[s2][1]
             )
-            mixing_samples_label = f"{s1}_{s2}_{int(contam_rate*100)}"
+            mixing_samples_label = f"{s1}_{s2}_{contam_rate*100}"
             mixed_labels.append(mixing_samples_label)
             mixed_crams[mixing_samples_label] = {}
             mixed_gvcfs[mixing_samples_label] = {}
@@ -245,19 +293,20 @@ def main():
                     attributes={
                         "main": s1,
                         "contaminant": s2,
-                        "contam_rate": f"{int(contam_rate*100)}\%",
+                        "contam_rate": f"{contam_rate*100}\%",
                         "chromosome": chromosome,
                     },
                 )
                 j_mix.storage("500Gi").memory('50Gi')
-                if len(cram_job_depend_list) > 0:
-                    j_mix.depends_on(*cram_job_depend_list)
+                # if len(cram_job_depend_list) > 0:
+                #     j_mix.depends_on(*cram_job_depend_list)
                 j_mix.call(
                     mixing_two_crams,
                     s1,
                     s2,
                     input_main_cram_file["cram"],
                     input_contam_cram_file["cram"],
+                    input_ref_fasta.fasta,
                     j_mix.ofile,
                     contam_rate,
                     chromosome,
@@ -280,7 +329,7 @@ def main():
                     attributes={
                         "main": s1,
                         "contaminant": s2,
-                        "contam_rate": f"{int(contam_rate*100)}\%",
+                        "contam_rate": f"{contam_rate*100}\%",
                     },
                 )
                 if len(mix_cram_job_depend_list) > 0:
@@ -334,16 +383,16 @@ def main():
                 backend=backend,
             )
 
-        if args.run_freemix_sum_table:
-            contam_est = []
-            split_labels = pd.DataFrame([i.split("_") for i in mixed_labels], columns = ['original', 'contaminant', 'contam_rate'])
-            for s in mixed_labels:
-                contam_est.append(
-                    check_contam(1, f"{MY_BUCKET}/mixed_samples/verifybamid/", s)
-                )
-            split_labels['freemix_score'] = contam_est
-            mixed_table = hl.Table.from_pandas(split_labels)
-            mixed_table.write(f"{MY_BUCKET}/hgdp_mixed_sample_freemix_score.ht")
+        # if args.run_freemix_sum_table:
+        #     contam_est = []
+        #     split_labels = pd.DataFrame([i.split("_") for i in mixed_labels], columns = ['original', 'contaminant', 'contam_rate'])
+        #     for s in mixed_labels:
+        #         contam_est.append(
+        #             check_contam(1, f"{MY_BUCKET}/mixed_samples/verifybamid/", s)
+        #         )
+        #     split_labels['freemix_score'] = contam_est
+        #     mixed_table = hl.Table.from_pandas(split_labels)
+        #     mixed_table.write(f"{MY_BUCKET}/hgdp_mixed_sample_freemix_score.ht")
 
         break
 

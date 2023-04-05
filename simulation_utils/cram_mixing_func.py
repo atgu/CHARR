@@ -37,7 +37,7 @@ def mixing_two_crams(
         print(chromosome)
         next_read1 = False
         next_read2 = False
-        for i in range(CHROM_LENGTHS[chromosome[3]]):
+        for i in range(CHROM_LENGTHS[chromosome]):
             while True:
                 if (i < read1.pos or next_read1) and (i < read2.pos or next_read2):
                     break
