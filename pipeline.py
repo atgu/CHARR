@@ -10,6 +10,7 @@ import pandas as pd
 
 from variant_calling.haplotype_caller import haplotype_caller_gatk
 from variant_calling.merge_gvcfs import merge_vcf
+from variant_calling.gvcf_index import index_gvcf
 from variant_calling.variant_calling_pipeline import var_call_pipeline
 
 from batch_verifybamid import *
@@ -81,7 +82,7 @@ def main():
                 name=f"get_header_{sample_id}",
                 attributes={"sample_id": sample_id, "job_type": "get_header"},
             )
-            j_header.storage("6Gi")
+            j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory("15Gi")
             j_header.command(
                 f"samtools view -H {input_cram_file['cram']} > {j_header.ofile}"
             )
@@ -193,6 +194,10 @@ def main():
                 )
                 gvcf_job_depend_list.append(tmp_job)
                 contam_free_gvcfs[sample_id][chromosome] = tmp_gvcf
+            else:
+                tmp_gvcf = b.read_input(f'{MY_BUCKET}/contam_free/variant-calling/{sample_id}/{sample_id}_{chromosome}.g.vcf')
+                contam_free_gvcfs[sample_id][chromosome] = tmp_gvcf
+
 
         cram_file_name = cram_files[s][0].split("/")[-1][:-5]
         output_full_cram_path = (
@@ -250,15 +255,22 @@ def main():
         #     gvcfs_list.append(file['path'])
         #     gvcfs_sizes_sum += bytes_to_gb(file['path'])
         # merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 10
-        merge_vcf(
-            b=b,
-            gvcf_list=contam_free_gvcfs[sample_id],
-            depend_on=None,
-            storage="50",
-            output_vcf_name=f"{sample_id}",
-            out_dir=f"{MY_BUCKET}/contam_free",
-        )
+        if not hl.hadoop_exists(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz'):
+            logger.info(f'Running merge gvcfs: {sample_id}...')
+            merged_vcf, j_merge = merge_vcf(b=b,
+                                            gvcf_list=list(contam_free_gvcfs[sample_id].values()),
+                                            depend_on=None,
+                                            storage='80',
+                                            output_vcf_name=f'{sample_id}',
+                                            out_dir=f'{MY_BUCKET}/contam_free')
+        else:
+            merged_vcf = b.read_input(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz')
 
+        if not hl.hadoop_exists(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz.tbi'):
+            gvcf_index_file = index_gvcf(b=b, input_vcf=merged_vcf,
+                                         output_vcf_ind_name=f'{sample_id}',
+                                         out_dir=f'{MY_BUCKET}/contam_free',
+                                         memory="7.5")
     if args.run_freemix_sum_table:
         contam_est = []
         for s in samples:
@@ -308,8 +320,11 @@ def main():
         sample_pairs.write(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht")
     else:
         sample_pairs = hl.read_table(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht")
-        MAIN = sample_pairs["original"]
-        CONTAM = sample_pairs["contaminant"]
+        sample_pairs = sample_pairs.aggregate(
+            hl.struct(original=hl.agg.collect(sample_pairs.original),
+                      contaminant=hl.agg.collect(sample_pairs.contaminant),))
+        MAIN = sample_pairs.original
+        CONTAM = sample_pairs.contaminant
 
     mixed_crams = {}
     mixed_gvcfs = {}
@@ -342,7 +357,7 @@ def main():
                         "job_type": "get_header",
                     },
                 )
-                j_header.storage("6Gi")
+                j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory("15Gi")
                 j_header.command(
                     f"samtools view -H {input_main_cram_file['cram']} > {j_header.ofile}"
                 )
@@ -465,6 +480,10 @@ def main():
                     )
                     mix_gvcf_job_depend_list.append(tmp_job)
                     mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
+                else:
+                    tmp_gvcf = b.read_input(
+                        f'{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/{mixing_samples_label}_{chromosome}.g.vcf')
+                    mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
 
             output_mix_full_cram_path = (
                 f"{MY_BUCKET}/mixed_samples/crams/{mixing_samples_label}_mixed.cram"
@@ -520,14 +539,23 @@ def main():
             #     gvcfs_list.append(file['path'])
             #     gvcfs_sizes_sum += bytes_to_gb(file['path'])
             # merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 10
-            merge_vcf(
-                b=b,
-                gvcf_list=mixed_gvcfs[mixing_samples_label],
-                depend_on=None,
-                storage="50",
-                output_vcf_name=f"{mixing_samples_label}",
-                out_dir=f"{MY_BUCKET}/mixed_samples",
-            )
+            if not hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz'):
+                logger.info(f'Running merge gvcfs: {mixing_samples_label}...')
+                merged_vcf, j_merge = merge_vcf(b=b,
+                          gvcf_list=list(mixed_gvcfs[mixing_samples_label].values()),
+                          depend_on=None,
+                          storage='50',
+                          output_vcf_name=f'{mixing_samples_label}',
+                          out_dir=f'{MY_BUCKET}/mixed_samples')
+            else:
+                merged_vcf = b.read_input(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz')
+
+            if not hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz.tbi'):
+                logger.info(f'Indexing gvcf: {mixing_samples_label}...')
+                gvcf_index_file = index_gvcf(b=b, input_vcf=merged_vcf,
+                                             output_vcf_ind_name=f'{mixing_samples_label}',
+                                             out_dir=f'{MY_BUCKET}/mixed_samples',
+                                             memory="7.5")
             break
 
         if args.run_freemix_sum_table:

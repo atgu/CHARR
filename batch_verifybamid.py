@@ -114,7 +114,7 @@ def run_verifybamid(
         attributes = {
             "s1": s1,
             "s2": s2,
-            "contam_rate": contam_rate,
+            "contam_rate": f"{contam_rate*100}\%",
             "chromosome": chromosome,
             "job_type": "verifybamid",
         }
@@ -126,7 +126,7 @@ def run_verifybamid(
         }
 
     j = b.new_job(f"Run_VerifyBamID_{output_prefix}", attributes=attributes)
-    j.image(IMAGE).cpu(ncpu).storage(f"{disk_size}Gi").memory("highmem")
+    j.image(IMAGE).cpu(ncpu).storage(f"{disk_size}Gi").memory("15Gi")
     if depend_on is not None:
         j.depends_on(depend_on)
 
