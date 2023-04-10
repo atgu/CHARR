@@ -12,6 +12,7 @@ from variant_calling.haplotype_caller import haplotype_caller_gatk
 from variant_calling.merge_gvcfs import merge_vcf
 from variant_calling.gvcf_index import index_gvcf
 from variant_calling.variant_calling_pipeline import var_call_pipeline
+from variant_calling.get_file_size import bytes_to_gb
 
 from batch_verifybamid import *
 from simulation_utils.cram_decontam_func import *
@@ -91,11 +92,11 @@ def main():
         gvcf_job_depend_list = []
         for chromosome in CHROMOSOMES:
             output_cram_path = f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
-            logger.info(
-                f"Generating contamination free cram: {sample_id}-{chromosome}..."
-            )
             var_call_depend_on = None
             if not hl.hadoop_exists(output_cram_path):
+                logger.info(
+                    f"Generating contamination free cram: {sample_id}-{chromosome}..."
+                )
                 j_cram = b.new_python_job(
                     name=f"Run_contam_free_file_{sample_id}_{chromosome}",
                     attributes={
@@ -195,9 +196,12 @@ def main():
                 gvcf_job_depend_list.append(tmp_job)
                 contam_free_gvcfs[sample_id][chromosome] = tmp_gvcf
             else:
-                tmp_gvcf = b.read_input(f'{MY_BUCKET}/contam_free/variant-calling/{sample_id}/{sample_id}_{chromosome}.g.vcf')
+                tmp_gvcf = b.read_input(
+                    f"{MY_BUCKET}/contam_free/variant-calling/{sample_id}/{sample_id}_{chromosome}.g.vcf"
+                )
                 contam_free_gvcfs[sample_id][chromosome] = tmp_gvcf
 
+            # break
 
         cram_file_name = cram_files[s][0].split("/")[-1][:-5]
         output_full_cram_path = (
@@ -248,29 +252,46 @@ def main():
                 disable_sanity_check=args.disable_sanity_check,
             )
 
-        # gvcfs_to_merge = hl.utils.hadoop_ls(f'{MY_BUCKET}/contam_free/variant-calling/{sample_id}/*.vcf')
-        # gvcfs_list = []
-        # gvcfs_sizes_sum = 0
-        # for file in gvcfs_to_merge:
-        #     gvcfs_list.append(file['path'])
-        #     gvcfs_sizes_sum += bytes_to_gb(file['path'])
-        # merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 10
-        if not hl.hadoop_exists(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz'):
-            logger.info(f'Running merge gvcfs: {sample_id}...')
-            merged_vcf, j_merge = merge_vcf(b=b,
-                                            gvcf_list=list(contam_free_gvcfs[sample_id].values()),
-                                            depend_on=None,
-                                            storage='80',
-                                            output_vcf_name=f'{sample_id}',
-                                            out_dir=f'{MY_BUCKET}/contam_free')
+        if not hl.hadoop_exists(
+            f"{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz"
+        ):
+            logger.info(f"Running merge gvcfs: {sample_id}...")
+            gvcfs_to_merge = hl.utils.hadoop_ls(
+                f"{MY_BUCKET}/contam_free/variant-calling/{sample_id}/*.vcf"
+            )
+            gvcfs_list = []
+            gvcfs_sizes_sum = 0
+            for file in gvcfs_to_merge:
+                gvcfs_list.append(file["path"])
+                gvcfs_sizes_sum += bytes_to_gb(file["path"])
+            merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 20
+            merged_vcf, j_merge = merge_vcf(
+                b=b,
+                gvcf_list=gvcfs_list,
+                depend_on=gvcf_job_depend_list,
+                storage=merge_disk_size,
+                output_vcf_name=f"{sample_id}",
+                out_dir=f"{MY_BUCKET}/contam_free",
+                memory="50",
+            )
         else:
-            merged_vcf = b.read_input(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz')
+            merged_vcf = b.read_input(
+                f"{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz"
+            )
 
-        if not hl.hadoop_exists(f'{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz.tbi'):
-            gvcf_index_file = index_gvcf(b=b, input_vcf=merged_vcf,
-                                         output_vcf_ind_name=f'{sample_id}',
-                                         out_dir=f'{MY_BUCKET}/contam_free',
-                                         memory="7.5")
+        if not hl.hadoop_exists(
+            f"{MY_BUCKET}/contam_free/merged-gvcf/{sample_id}.g.vcf.gz.tbi"
+        ):
+            logger.info(f"Indexing gvcf: {sample_id}...")
+            gvcf_index_file = index_gvcf(
+                b=b,
+                input_vcf=merged_vcf,
+                output_vcf_ind_name=f"{sample_id}",
+                out_dir=f"{MY_BUCKET}/contam_free",
+                storage="15",
+                memory="15",
+            )
+
     if args.run_freemix_sum_table:
         contam_est = []
         for s in samples:
@@ -278,12 +299,9 @@ def main():
                 check_contam(1, f"{MY_BUCKET}/contam_free/verifybamid/", s)
             )
         sample_pairs = hl.Table.from_pandas(
-            pd.DataFrame(
-                list(zip(samples, contam_est)), columns=["sample_id", "freemix_score"]
-            )
+            pd.DataFrame({"sample_id": samples, "freemix_score": contam_est})
         )
-        sample_table = hl.Table.from_pandas(sample_pairs)
-        sample_table.write(f"{MY_BUCKET}/hgdp_selected_sample_freemix_score.ht")
+        sample_pairs.write(f"{MY_BUCKET}/hgdp_selected_sample_freemix_score.ht")
 
     logger.info(f"-------Mixing samples-------")
     logger.info(f"Preparing sample pairs...")
@@ -320,25 +338,19 @@ def main():
         sample_pairs.write(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht")
     else:
         sample_pairs = hl.read_table(f"{MY_BUCKET}/mixed_samples/sample_pairs.ht")
-        sample_pairs = sample_pairs.aggregate(
-            hl.struct(original=hl.agg.collect(sample_pairs.original),
-                      contaminant=hl.agg.collect(sample_pairs.contaminant),))
-        MAIN = sample_pairs.original
-        CONTAM = sample_pairs.contaminant
+        MAIN = list(sample_pairs.to_pandas()["original"])
+        CONTAM = list(sample_pairs.to_pandas()["contaminant"])
 
     mixed_crams = {}
     mixed_gvcfs = {}
     mixed_labels = []
-    for contam_rate in CONTAM_RATES:
-        for i in range(len(MAIN)):
-            s1 = MAIN[i]
-            s2 = CONTAM[i]
-            OUT_BUCKET = f"{MY_BUCKET}/mixed_samples/crams/cram_by_chrom/contam_rate_{contam_rate*100}/{s1}_{s2}"
-            input_main_cram_file = b.read_input_group(
+    for i in range(len(MAIN)):
+        s1 = MAIN[i]
+        s2 = CONTAM[i]
+        for contam_rate in CONTAM_RATES:
+            OUT_BUCKET = f"{MY_BUCKET}/mixed_samples/crams/cram_by_chrom/{s1}_{s2}/contam_rate_{contam_rate*100}"
+            input_header_file = b.read_input_group(
                 cram=cram_files[s1][0], index=cram_files[s1][1]
-            )
-            input_contam_cram_file = b.read_input_group(
-                cram=cram_files[s2][0], index=cram_files[s2][1]
             )
             mixing_samples_label = f"{s1}_{s2}_{contam_rate*100}"
             mixed_labels.append(mixing_samples_label)
@@ -353,17 +365,25 @@ def main():
                     attributes={
                         "s1": s1,
                         "s2": s2,
-                        "contam_rate": contam_rate,
+                        "contam_rate": f"{contam_rate*100}\%",
                         "job_type": "get_header",
                     },
                 )
                 j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory("15Gi")
                 j_header.command(
-                    f"samtools view -H {input_main_cram_file['cram']} > {j_header.ofile}"
+                    f"samtools view -H {input_header_file['cram']} > {j_header.ofile}"
                 )
             mix_cram_job_depend_list = []
             mix_gvcf_job_depend_list = []
             for chromosome in CHROMOSOMES:
+                cram_s1 = f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{s1}/{s1}_contam_free_{chromosome}.cram"
+                cram_s2 = f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{s2}/{s2}_contam_free_{chromosome}.cram"
+                input_main_chrom_cram = b.read_input_group(
+                    cram=cram_s1, index=f"{cram_s1}.crai"
+                )
+                input_contam_chrom_cram = b.read_input_group(
+                    cram=cram_s2, index=f"{cram_s2}.crai"
+                )
                 output_mix_cram_path = (
                     f"{OUT_BUCKET}/{mixing_samples_label}_{chromosome}.cram"
                 )
@@ -386,8 +406,8 @@ def main():
                         mixing_two_crams,
                         s1,
                         s2,
-                        input_main_cram_file["cram"],
-                        input_contam_cram_file["cram"],
+                        input_main_chrom_cram["cram"],
+                        input_contam_chrom_cram["cram"],
                         input_ref_fasta.fasta,
                         j_mix.ofile,
                         contam_rate,
@@ -454,7 +474,7 @@ def main():
                     mixed_crams[mixing_samples_label][chromosome] = tmp_mix_cram
 
                 if not hl.hadoop_exists(
-                    f"{MY_BUCKET}/mixed_samples/variant-calling/{s1}/{mixing_samples_label}_{chromosome}.g.vcf"
+                    f"{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/{mixing_samples_label}_{chromosome}.g.vcf"
                 ):
                     logger.info(
                         f"Running haplotype caller: {mixing_samples_label}-{chromosome}..."
@@ -482,7 +502,8 @@ def main():
                     mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
                 else:
                     tmp_gvcf = b.read_input(
-                        f'{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/{mixing_samples_label}_{chromosome}.g.vcf')
+                        f"{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/{mixing_samples_label}_{chromosome}.g.vcf"
+                    )
                     mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
 
             output_mix_full_cram_path = (
@@ -531,48 +552,59 @@ def main():
                     disable_sanity_check=args.disable_sanity_check,
                 )
 
-            # gvcfs_to_merge = hl.utils.hadoop_ls(
-            #     f'{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/*.vcf')
-            # gvcfs_list = []
-            # gvcfs_sizes_sum = 0
-            # for file in gvcfs_to_merge:
-            #     gvcfs_list.append(file['path'])
-            #     gvcfs_sizes_sum += bytes_to_gb(file['path'])
-            # merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 10
-            if not hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz'):
-                logger.info(f'Running merge gvcfs: {mixing_samples_label}...')
-                merged_vcf, j_merge = merge_vcf(b=b,
-                          gvcf_list=list(mixed_gvcfs[mixing_samples_label].values()),
-                          depend_on=None,
-                          storage='50',
-                          output_vcf_name=f'{mixing_samples_label}',
-                          out_dir=f'{MY_BUCKET}/mixed_samples')
-            else:
-                merged_vcf = b.read_input(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz')
-
-            if not hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz.tbi'):
-                logger.info(f'Indexing gvcf: {mixing_samples_label}...')
-                gvcf_index_file = index_gvcf(b=b, input_vcf=merged_vcf,
-                                             output_vcf_ind_name=f'{mixing_samples_label}',
-                                             out_dir=f'{MY_BUCKET}/mixed_samples',
-                                             memory="7.5")
-            break
-
-        if args.run_freemix_sum_table:
-            contam_est = []
-            split_labels = pd.DataFrame(
-                [i.split("_") for i in mixed_labels],
-                columns=["original", "contaminant", "contam_rate"],
-            )
-            for s in mixed_labels:
-                contam_est.append(
-                    check_contam(1, f"{MY_BUCKET}/mixed_samples/verifybamid/", s)
+            if not hl.hadoop_exists(
+                f"{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz"
+            ):
+                logger.info(f"Running merge gvcfs: {mixing_samples_label}...")
+                gvcfs_to_merge = hl.utils.hadoop_ls(
+                    f"{MY_BUCKET}/mixed_samples/variant-calling/{mixing_samples_label}/*.vcf"
                 )
-            split_labels["freemix_score"] = contam_est
-            mixed_table = hl.Table.from_pandas(split_labels)
-            mixed_table.write(f"{MY_BUCKET}/hgdp_mixed_sample_freemix_score.ht")
+                gvcfs_list = []
+                gvcfs_sizes_sum = 0
+                for file in gvcfs_to_merge:
+                    gvcfs_list.append(file["path"])
+                    gvcfs_sizes_sum += bytes_to_gb(file["path"])
+                merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 15
+                merged_vcf, j_merge = merge_vcf(
+                    b=b,
+                    gvcf_list=gvcfs_list,
+                    depend_on=mix_gvcf_job_depend_list,
+                    storage=merge_disk_size,
+                    output_vcf_name=f"{mixing_samples_label}",
+                    out_dir=f"{MY_BUCKET}/mixed_samples",
+                    memory="50",
+                )
+            else:
+                merged_vcf = b.read_input(
+                    f"{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz"
+                )
 
-        break
+            if not hl.hadoop_exists(
+                f"{MY_BUCKET}/mixed_samples/merged-gvcf/{mixing_samples_label}.g.vcf.gz.tbi"
+            ):
+                logger.info(f"Indexing gvcf: {mixing_samples_label}...")
+                gvcf_index_file = index_gvcf(
+                    b=b,
+                    input_vcf=merged_vcf,
+                    output_vcf_ind_name=f"{mixing_samples_label}",
+                    out_dir=f"{MY_BUCKET}/mixed_samples",
+                    storage="15",
+                    memory="15",
+                )
+
+    if args.run_freemix_sum_table:
+        contam_est = []
+        split_labels = pd.DataFrame(
+            [i.split("_") for i in mixed_labels],
+            columns=["original", "contaminant", "contam_rate"],
+        )
+        for s in mixed_labels:
+            contam_est.append(
+                check_contam(1, f"{MY_BUCKET}/mixed_samples/verifybamid/", s)
+            )
+        split_labels["freemix_score"] = contam_est
+        mixed_table = hl.Table.from_pandas(split_labels)
+        mixed_table.write(f"{MY_BUCKET}/hgdp_mixed_sample_freemix_score.ht")
 
     b.run()
 
@@ -595,7 +627,7 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "--skip-obtain_header",
+        "--skip-obtain-header",
         help="Whether to skip obtaining header",
         action="store_true",
     )
@@ -617,6 +649,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     main()
-
 
 # python3 pipeline.py --input-sample-info gs://gnomad-wenhan/charr_simulation/hgdp_sample_path_info.csv --selected-samples gs://gnomad-wenhan/charr_simulation/hgdp_selected_sample_id.csv --skip-gvcf-dict

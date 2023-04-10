@@ -61,7 +61,7 @@ def run_gvcf_dict(b: hb.batch, gvcf_file_name: str, gvcf_path: Tuple):
     gvcf_dict_path = f"{MY_BUCKET}/gvcf_dicts/{gvcf_file_name}_gvcf_dict.pkl"
     sample_id = gvcf_file_name.split(".")[0]
     j = b.new_python_job(name=f"Run_gvcf_dict_{sample_id}")
-    # j.memory("highmem")
+    # j.memory('highmem')
     # j.cpu(16)
     j.storage("500Gi").memory("7.5Gi")
     if hl.hadoop_exists(gvcf_dict_path):
@@ -112,7 +112,9 @@ def write_contam_free_cram_file(
     )
     f = pipe.open(f"contam_free.sam", "w")
     ref_fasta = pysam.FastaFile(input_ref_fasta["fasta"])
+    j = 0
     for read in cram_in.fetch(chromosome):
+        j += 1
         if read.reference_id < 22:
             chrom = f"chr{read.reference_id + 1}"
         elif read.reference_id == 22:
@@ -150,6 +152,9 @@ def write_contam_free_cram_file(
         # If a read overlaps with an indel sites don't write the read out
         if no_indel:
             read.qual = error
+            if j < 10:
+                print(read, flush=True)
+                print(read.tostring(), flush=True)
             f.write(read.tostring() + "\n")
     cram_in.close()
     f.close()
