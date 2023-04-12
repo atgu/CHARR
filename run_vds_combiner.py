@@ -1,47 +1,55 @@
 import hail as hl
 import argparse
-from simulation_utils.generics import *
-from variant_calling.get_file_size import bytes_to_gb
-from variant_calling.merge_gvcfs import merge_vcf
+
+BILLING_PROJECT = "gnomad-production"
+MY_BUCKET = "gs://gnomad-wenhan/charr_simulation"
+TMP_DIR = "gs://gnomad-wenhan/tmp/contam_free_file/"
+SAMTOOLS_IMAGE = "staphb/samtools:latest"
+# SAMTOOLS_IMAGE = 'us-central1-docker.pkg.dev/broad-mpg-gnomad/wlu/hail/samtools:1.0'
+
+REF_FASTA_PATH = (
+    "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta"
+)
+REF_FASTA_INDEX = (
+    "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta.fai"
+)
+REF_DICT = "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.dict"
+
+
+CALLING_INTERVAL_LIST = "gs://gcp-public-data--broad-references/hg38/v0/wgs_calling_regions.hg38.interval_list"
+EVALUATION_INTERVAL_LIST = "gs://gcp-public-data--broad-references/hg38/v0/wgs_evaluation_regions.hg38.interval_list"
+DBSNP_VCF = "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf"
+DBSNP_VCF_INDEX = "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf.idx"
+
+ALLELES = ("A", "T", "C", "G")
+
+chromosomes = list(map(str, range(1, 23))) + ["X"]
+CHROMOSOMES = [f"chr{chrom}" for chrom in chromosomes]
+
+
+reference = "GRCh38"
+CHROM_LENGTHS = hl.get_reference(reference).lengths
+CONTAM_RATES = [0.005, 0.01, 0.02, 0.05, 0.1]
+
+POPs = ["afr", "amr", "eas", "mid", "nfe", "sas"]
 
 
 def main():
-    if args.run_merge_gvcfs:
-        backend = hb.ServiceBackend(
-            billing_project=BILLING_PROJECT,
-            remote_tmpdir=TMP_DIR,
-        )
-        b = hb.Batch(
-            name=f"Merging-Files",
-            default_python_image='us-central1-docker.pkg.dev/broad-mpg-gnomad/wlu/hail/hail-pysam-samtools:latest',
-            backend=backend,
-        )
-
-        sample_ids = pd.read_csv(args.selected_samples, sep=',')
-        for i in range(len(sample_ids)):
-            gvcfs_to_merge = hl.utils.hadoop_ls(f'{args.input_gvcf_bucket}/{sample_ids[i]}/variant-calling/*.vcf')
-            gvcfs_list = []
-            gvcfs_sizes_sum = 0
-            for file in gvcfs_to_merge:
-                gvcfs_list.append(file['path'])
-                gvcfs_sizes_sum += bytes_to_gb(file['path'])
-
-            merge_disk_size = round(gvcfs_sizes_sum * 2.5) + 10
-            merge_vcf(b=b,
-                      gvcf_list=gvcfs_list,
-                      storage=merge_disk_size,
-                      output_vcf_name=f'{sample_ids[i]}_contam_free',
-                      out_dir=f'{args.input_gvcf_bucket}')
-
-    gvcfs_to_combine = hl.utils.hadoop_ls(f'{args.input_gvcf_bucket}/merged-gvcfs/*.vcf.gz')
+    gvcfs_to_combine = hl.utils.hadoop_ls(f'{args.input_gvcf_bucket}/merged-gvcf/*.vcf.gz')
     gvcfs_list = []
+    gvcf_names = []
     for file in gvcfs_to_combine:
-        gvcfs_list.append(file['path'])
+        if hl.hadoop_exists(f"{file['path']}.tbi"):
+            gvcfs_list.append(file['path'])
+            gvcf_names.append(file['path'].split("/")[-1][:-9])
+    print(gvcf_names)
 
     combiner = hl.vds.new_combiner(
         output_path=f"{MY_BUCKET}/{args.output_vds_name}.vds",
         temp_path=TMP_DIR,
         gvcf_paths=gvcfs_list,
+        gvcf_sample_names=gvcf_names,
+        gvcf_external_header="gs://gnomad-wenhan/charr_simulation/header.txt",
         use_genome_default_intervals=True,
         reference_genome="GRCh38",
     )
@@ -55,22 +63,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sample_ids",
         help="Path to a list of sample IDs to merge",
-        type=str,
         nargs="?",
     )
     parser.add_argument(
         "--input-gvcf-bucket",
         help="Input gvcf bucket",
-        type=str,
         nargs="?",
         default="gs://gnomad-wenhan/charr_simulation/contam_free/"
     )
     parser.add_argument(
         "--output-vds-name",
         help="Output VDS name",
-        type=str,
         nargs="?",
     )
     args = parser.parse_args()
     print(args)
     main()
+
+# hailctl dataproc submit wlu run_vds_combiner.py --output-vds-name hgdp_decontaminated_28_samples
+# hailctl dataproc submit wlu run_vds_combiner.py --input-gvcf-bucket gs://gnomad-wenhan/charr_simulation/mixed_samples/ --output-vds-name hgdp_mixed_samples_full
