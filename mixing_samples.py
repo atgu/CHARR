@@ -57,7 +57,6 @@ def edit_read_group(read, rg_name):
     return read
 
 def mixing_many_samples(
-        b: hb.Batch,
         input_list: List,
         output_list: List,
         sample_list: List,
@@ -138,7 +137,6 @@ def main():
 
     if args.test:
         samples = samples[:3]
-        print(samples)
 
     for sample in samples:
         input_cram_file = b.read_input_group(
@@ -169,13 +167,13 @@ def main():
                 for sample_id in samples]
             inputs = [b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"}) for path in
                                  cram_paths]
-            outputs = [j_mix[f'{sample}_chromosome'] for sample in samples]
+            outputs = [j_mix[f'{sample}_{chromosome}'] for sample in samples]
+
 
             j_mix.call(
                 mixing_many_samples,
-                b=b,
                 input_list=inputs,
-                outpu_list=outputs,
+                output_list=outputs,
                 sample_list=samples,
                 input_ref_fasta=input_ref_fasta['fasta'],
                 chromosome=chromosome,
@@ -193,19 +191,11 @@ def main():
             j_reheader.image(SAMTOOLS_IMAGE).storage("20Gi").memory("3.75Gi")
 
             for sample in samples:
-                j_header = b.new_job(
-                    name=f"get_header_{sample}",
-                    attributes={"sample_id": sample, "job_type": "get_header"},
-                )
-                j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory('15Gi')
-                j_header.command(
-                    f"samtools view -H {input_cram_file['cram']} > {j_header.ofile}"
-                )
                 output_cram_path = f'{MY_BUCKET}/mixed_samples/v2/crams/cram_by_chrom/{sample}/contam_rate_{contam_rate*100}/{sample}_{chromosome}_{contam_rate*100}.cram'
                 b.write_output(j_mix[f'{sample}_{chromosome}'], output_cram_path)
 
                 j_reheader.command(
-                    f"samtools reheader {j_header[sample]} {j_mix.ofile} > {j_reheader.ofile1}"
+                    f"samtools reheader {j_header[sample]} {j_mix[f'{sample}_{chromosome}']} > {j_reheader.ofile1}"
                 )
                 j_reheader.command(
                     f"samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}"
