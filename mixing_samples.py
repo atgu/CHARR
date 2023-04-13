@@ -69,12 +69,17 @@ def mixing_many_samples(
     outputs = [open_pipes_output(ref_fasta=input_ref_fasta, output_name=output_list[sample_id]) for sample_id in
                sample_list]
     main_rgs = [get_read_groups(input) for input in inputs]
-    next_reads = [[] for input in inputs]
+    next_reads = [[next(input.fetch(chromosome, until_eof=True))] for input in inputs]
+    current_pos = [next_read[0].pos for next_read in next_reads]
 
     for pos in range(CHROM_LENGTHS[chromosome]):
-        next_reads = [[read for read in reads if read.pos == pos] for reads in next_reads]
+        if (not any(x == pos for x in current_pos)):
+            continue
+        next_reads = [[read for read in reads if read.pos >= pos] for reads in next_reads]
         current_reads = copy.deepcopy(next_reads)
         for sample in range(len(inputs)):
+            if len(next_reads[sample]) > 0 and next_reads[sample][0].pos != pos:
+                continue
             while True:
                 next_read = edit_read_group(next(inputs[sample]), main_rgs[sample])
                 # print(f'current sample: {samples[sample]}')
@@ -86,6 +91,7 @@ def mixing_many_samples(
                 else:
                     next_reads[sample].append(next_read)
                     break
+        current_pos = [next_read[-1].pos for next_read in next_reads]
 
         # contamination
         current_reads_actually_at_position = [[read for read in reads if read.pos == pos] for reads in current_reads]
@@ -102,6 +108,8 @@ def mixing_many_samples(
                     outputs[sample].write(random_read.tostring() + "\n")
     for output in outputs:
         output.close()
+    for input in inputs:
+        input.close()
 
 
 
