@@ -2,6 +2,7 @@ import pysam
 import pipes
 import copy
 import random
+from random import choice
 import hail as hl
 import hailtop.batch as hb
 import logging
@@ -101,7 +102,7 @@ def mixing_many_samples(
                 if not contaminate:
                     outputs[sample].write(read.tostring() + "\n")
                 else:
-                    random_ind = random.randint(0, len(inputs) - 1)
+                    random_ind = choice([i for i in range(0,len(inputs) - 1) if i not in [sample]])
                     random_sample_reads = current_reads_actually_at_position[random_ind]
                     random_read_ind = random.randint(0, len(random_sample_reads) - 1)
                     random_read = random_sample_reads[random_read_ind]
