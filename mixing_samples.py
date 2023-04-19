@@ -67,29 +67,37 @@ def mixing_many_samples(
 ):
     inputs = [pysam.AlignmentFile(cram_input["cram"], mode="rc", reference_filename=input_ref_fasta) for
               cram_input in input_list]
-    outputs = [open_pipes_output(ref_fasta=input_ref_fasta, output_name=output_list[sample_id]) for sample_id in
-               sample_list]
+    outputs = [open_pipes_output(ref_fasta=input_ref_fasta, output_name=output_list[i]) for i in
+               range(len(sample_list))]
     main_rgs = [get_read_groups(input) for input in inputs]
     next_reads = [[next(input.fetch(chromosome, until_eof=True))] for input in inputs]
     current_pos = [next_read[0].pos for next_read in next_reads]
+    last_reads = [False for input in inputs]
 
     for pos in range(CHROM_LENGTHS[chromosome]):
         if (not any(x == pos for x in current_pos)):
             continue
+        if any(last_reads):
+            break
         next_reads = [[read for read in reads if read.pos >= pos] for reads in next_reads]
         current_reads = copy.deepcopy(next_reads)
         for sample in range(len(inputs)):
             if len(next_reads[sample]) > 0 and next_reads[sample][0].pos != pos:
                 continue
             while True:
-                next_read = edit_read_group(next(inputs[sample]), main_rgs[sample])
                 # print(f'current sample: {samples[sample]}')
                 # print(f'current read: {next_read}')
                 # print(f'current position: {pos}')
                 # print(f'current read position: {next_read.pos}')
-                if next_read.pos == pos:
+                try:
+                    next_read = edit_read_group(next(inputs[sample]), main_rgs[sample])
+                except StopIteration:
+                    last_reads[sample] = True
+                    break
+
+                if next_read.pos == pos and (not last_reads[sample]):
                     current_reads[sample].append(next_read)
-                else:
+                elif not last_reads[sample]:
                     next_reads[sample].append(next_read)
                     break
         current_pos = [next_read[-1].pos for next_read in next_reads]
@@ -102,7 +110,12 @@ def mixing_many_samples(
                 if not contaminate:
                     outputs[sample].write(read.tostring() + "\n")
                 else:
-                    random_ind = choice([i for i in range(0,len(inputs) - 1) if i not in [sample]])
+                    indexes = list(
+                        filter(lambda x: x not in [sample] and len(current_reads_actually_at_position[x]) > 0,
+                               range(0, len(inputs) - 1)))
+                    if len(indexes)==0:
+                        continue
+                    random_ind = choice(indexes)
                     random_sample_reads = current_reads_actually_at_position[random_ind]
                     random_read_ind = random.randint(0, len(random_sample_reads) - 1)
                     random_read = random_sample_reads[random_read_ind]
@@ -147,7 +160,8 @@ def main():
     if args.test:
         samples = samples[:3]
 
-    for sample in samples:
+    for i in range(len(samples)):
+        sample = samples[i]
         input_cram_file = b.read_input_group(
             cram=cram_files[sample][0], index=cram_files[sample][1]
         )
@@ -157,60 +171,75 @@ def main():
         )
         j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory('15Gi')
         j_header.command(
-            f"samtools view -H {input_cram_file['cram']} > {j_header[sample]}"
+            f"samtools view -H {input_cram_file['cram']} > {j_header[f'{sample}']}"
         )
 
     for contam_rate in CONTAM_RATES:
         for chromosome in CHROMOSOMES:
-            j_mix = b.new_python_job(
-                name=f"Mix_all_samples_{chromosome}",
-                attributes={
-                    "contam_rate": f"{contam_rate * 100}\%",
-                    "chromosome": chromosome,
-                    "job_type": "mixing_samples",
-                },
-            )
-            j_mix.storage("50Gi").memory("10Gi")
-            cram_paths = [
-                f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
-                for sample_id in samples]
-            inputs = [b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"}) for path in
-                                 cram_paths]
-            outputs = [j_mix[f'{sample}_{chromosome}'] for sample in samples]
-
-
-            j_mix.call(
-                mixing_many_samples,
-                input_list=inputs,
-                output_list=outputs,
-                sample_list=samples,
-                input_ref_fasta=input_ref_fasta['fasta'],
-                chromosome=chromosome,
-                contam_rate=contam_rate
-            )
-
-            j_reheader = b.new_job(
-                name=f"Reheader_contam_free_file_{chromosome}",
-                attributes={
-                    "contam_rate": f"{contam_rate * 100}\%",
-                    "chromosome": chromosome,
-                    "job_type": "run_reheader",
-                },
-            )
-            j_reheader.image(SAMTOOLS_IMAGE).storage("20Gi").memory("3.75Gi")
-
-            for sample in samples:
-                output_cram_path = f'{MY_BUCKET}/mixed_samples/v2/crams/cram_by_chrom/{sample}/contam_rate_{contam_rate*100}/{sample}_{chromosome}_{contam_rate*100}.cram'
-                b.write_output(j_mix[f'{sample}_{chromosome}'], output_cram_path)
-
-                j_reheader.command(
-                    f"samtools reheader {j_header[sample]} {j_mix[f'{sample}_{chromosome}']} > {j_reheader.ofile1}"
+            if args.test:
+                chromosome = 'chr21'
+            output_mix_cram_paths = [f'{MY_BUCKET}/mixed_samples/v2/crams/cram_by_chrom/{sample}/contam_rate_{contam_rate*100}/{sample}_{chromosome}_{contam_rate*100}.cram' for sample in samples]
+            if any([not hl.hadoop_exists(path) for path in output_mix_cram_paths]):
+                logger.info(
+                    f"Mixing contamination free crams: {chromosome}_{contam_rate*100}_percent_contamination..."
                 )
-                j_reheader.command(
-                    f"samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}"
+                j_mix = b.new_python_job(
+                    name=f"Mix_all_samples_{chromosome}",
+                    attributes={
+                        "contam_rate": f"{contam_rate * 100}\%",
+                        "chromosome": chromosome,
+                        "job_type": "mixing_samples",
+                    },
                 )
-                b.write_output(j_reheader.ofile1, output_cram_path)
-                b.write_output(j_reheader.ofile2, f"{output_cram_path}.crai")
+                j_mix.storage("50Gi").memory("10Gi")
+                cram_paths = [
+                    f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
+                    for sample_id in samples]
+                inputs = [b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"}) for path in
+                                     cram_paths]
+                outputs = [j_mix[f'{sample}_{chromosome}'] for sample in samples]
+
+                j_mix.call(
+                    mixing_many_samples,
+                    input_list=inputs,
+                    output_list=outputs,
+                    sample_list=samples,
+                    input_ref_fasta=input_ref_fasta['fasta'],
+                    chromosome=chromosome,
+                    contam_rate=contam_rate
+                )
+
+                for i in range(len(samples)):
+                    output_cram_path = output_mix_cram_paths[i]
+                    b.write_output(outputs[i], output_cram_path)
+
+            elif any([not hl.hadoop_exists(f"{path}.crai") for path in output_mix_cram_paths]):
+                logger.info(
+                    f"Reheadering contamination free cram: {chromosome}_{contam_rate*100}_percent_contamination..."
+                )
+                j_reheader = b.new_job(
+                    name=f"Reheader_contam_free_file_{chromosome}",
+                    attributes={
+                        "contam_rate": f"{contam_rate * 100}\%",
+                        "chromosome": chromosome,
+                        "job_type": "run_reheader",
+                    },
+                )
+                j_reheader.image(SAMTOOLS_IMAGE).storage("20Gi").memory("3.75Gi")
+                j_reheader.depends_on(j_header)
+
+                for i in range(len(samples)):
+                    if not hl.hadoop_exists(f"{output_mix_cram_paths[i]}.crai"):
+                        tmp_mix_cram = b.read_input(output_mix_cram_paths[i])
+                        sample = samples[i]
+                        j_reheader.command(
+                            f"samtools reheader {j_header[f'{sample}']} {tmp_mix_cram} > {j_reheader.ofile1}"
+                        )
+                        j_reheader.command(
+                            f"samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}"
+                        )
+                        b.write_output(j_reheader.ofile1, output_mix_cram_paths[i])
+                        b.write_output(j_reheader.ofile2, f"{output_mix_cram_paths[i]}.crai")
             if args.test:
                 break
         if args.test:
