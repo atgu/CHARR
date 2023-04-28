@@ -10,6 +10,14 @@ import pandas as pd
 import argparse
 import numpy as np
 from typing import List
+from functools import reduce
+
+from variant_calling.haplotype_caller import haplotype_caller_gatk
+from variant_calling.merge_gvcfs import merge_vcf
+from variant_calling.gvcf_index import index_gvcf
+from variant_calling.variant_calling_pipeline import var_call_pipeline
+from variant_calling.get_file_size import bytes_to_gb
+from batch_verifybamid import *
 
 reference = "GRCh38"
 CHROM_LENGTHS = hl.get_reference(reference).lengths
@@ -49,7 +57,7 @@ def get_read_groups(file):
     main_rg = read.tags[rg_ind[0]][-1]
     return main_rg
 
-def edit_read_group(read, rg_name):
+def edit_read_group(read, rg_name='ERR1349727'):
     rg_ind = [i for i, tuple in enumerate(read.tags) if 'RG' in tuple]
     if len(rg_ind)>0:
         temp_tag = [list(ele) for ele in read.tags]
@@ -57,19 +65,87 @@ def edit_read_group(read, rg_name):
         read.tags = [tuple(ele) for ele in temp_tag]
     return read
 
-def get_main_rg_list(
-        b: hb.Batch,
-        cram_files: dict,
-        input_ref_fasta: str,
-        sample_list: list
-):
-    full_inputs = [b.read_input_group(**{"cram": cram_files[sample][0], "cram.crai": f"{cram_files[sample][1]}.crai"}) for sample in
-              sample_list]
-    rg_inputs = [pysam.AlignmentFile(full_input, mode="rc", reference_filename=input_ref_fasta) for
-                 full_input in full_inputs]
-    main_rgs = [get_read_groups(input) for input in rg_inputs]
-    print(main_rgs)
-    return(main_rgs)
+# def mixing_many_samples(
+#         input_list: List,
+#         output_list: List,
+#         sample_list: List,
+#         input_ref_fasta: str,
+#         chromosome: str,
+#         contam_rate: float,
+# ):
+#     save_pos=[]
+#     save_next_reads_len=[]
+#     save_current_reads_len=[]
+#     save_current_reads_actually_at_position_len=[]
+#
+#     inputs = [pysam.AlignmentFile(cram_input["cram"], mode="rc", reference_filename=input_ref_fasta) for
+#               cram_input in input_list]
+#     outputs = [open_pipes_output(ref_fasta=input_ref_fasta, output_name=output_list[i]) for i in
+#                range(len(sample_list))]
+#     # main_rgs = [get_read_groups(input) for input in inputs]
+#     # print(main_rgs)
+#     next_reads = [[edit_read_group(next(inputs[i].fetch(chromosome, until_eof=True)))] for i in range(len(inputs))]
+#     current_pos = [next_read[0].pos for next_read in next_reads]
+#     last_reads = [False for input in inputs]
+#
+#     for pos in range(CHROM_LENGTHS[chromosome]):
+#         save_pos.append(pos)
+#         if (not any(x == pos for x in current_pos)):
+#             continue
+#         if any(last_reads):
+#             break
+#         next_reads = [[read for read in reads if read.pos >= pos] for reads in next_reads]
+#         save_next_reads_len.append(np.mean([len(x) for x in next_reads]))
+#         current_reads = copy.deepcopy(next_reads)
+#         for sample in range(len(inputs)):
+#             if len(next_reads[sample]) > 0 and next_reads[sample][0].pos != pos:
+#                 continue
+#             while True:
+#                 # print(f'current sample: {samples[sample]}')
+#                 # print(f'current read: {next_read}')
+#                 # print(f'current position: {pos}')
+#                 # print(f'current read position: {next_read.pos}')
+#                 try:
+#                     next_read = edit_read_group(next(inputs[sample]))
+#                 except StopIteration:
+#                     last_reads[sample] = True
+#                     break
+#
+#                 if next_read.pos == pos and (not last_reads[sample]):
+#                     current_reads[sample].append(next_read)
+#                 elif not last_reads[sample]:
+#                     next_reads[sample].append(next_read)
+#                     break
+#         save_current_reads_len.append(np.mean([len(x) for x in current_reads]))
+#         current_pos = [next_read[-1].pos for next_read in next_reads]
+#
+#         # contamination
+#         current_reads_actually_at_position = [[read for read in reads if read.pos == pos] for reads in current_reads]
+#         save_current_reads_actually_at_position_len.append(np.mean([len(x) for x in current_reads_actually_at_position]))
+#         for sample in range(len(inputs)):
+#             for read in current_reads_actually_at_position[sample]:
+#                 contaminate = np.random.binomial(1, contam_rate)
+#                 if not contaminate:
+#                     outputs[sample].write(read.tostring() + "\n")
+#                 else:
+#                     indexes = list(
+#                         filter(lambda x: x not in [sample] and len(current_reads_actually_at_position[x]) > 0,
+#                                range(0, len(inputs))))
+#                     if len(indexes)==0:
+#                         continue
+#                     random_ind = choice(indexes)
+#                     random_sample_reads = current_reads_actually_at_position[random_ind]
+#                     random_read_ind = random.randint(0, len(random_sample_reads) - 1)
+#                     random_read = random_sample_reads[random_read_ind]
+#                     outputs[sample].write(random_read.tostring() + "\n")
+#     for output in outputs:
+#         output.close()
+#     for input in inputs:
+#         input.close()
+#     df = pd.DataFrame(data=zip(save_pos, save_current_reads_len, save_next_reads_len, save_current_reads_actually_at_position_len),
+#                       columns=['Position', 'Current_reads_length', 'Next_reads_length', 'Current_reads_actually_at_position_length'])
+#     with hl.hadoop_open(f'{MY_BUCKET}/mixed_samples/v2/reads_summary_{chromosome}.csv', 'w') as f:
+#         df.to_csv(f)
 
 def mixing_many_samples(
         input_list: List,
@@ -83,9 +159,9 @@ def mixing_many_samples(
               cram_input in input_list]
     outputs = [open_pipes_output(ref_fasta=input_ref_fasta, output_name=output_list[i]) for i in
                range(len(sample_list))]
-    main_rgs = [get_read_groups(input) for input in inputs]
-    print(main_rgs)
-    next_reads = [[edit_read_group(next(inputs[i].fetch(chromosome, until_eof=True)), main_rgs[i])] for i in range(len(inputs))]
+    # main_rgs = [get_read_groups(input) for input in inputs]
+    # print(main_rgs)
+    next_reads = [[edit_read_group(next(inputs[i].fetch(chromosome, until_eof=True)))] for i in range(len(inputs))]
     current_pos = [next_read[0].pos for next_read in next_reads]
     last_reads = [False for input in inputs]
 
@@ -105,7 +181,7 @@ def mixing_many_samples(
                 # print(f'current position: {pos}')
                 # print(f'current read position: {next_read.pos}')
                 try:
-                    next_read = edit_read_group(next(inputs[sample]), main_rgs[sample])
+                    next_read = edit_read_group(next(inputs[sample]))
                 except StopIteration:
                     last_reads[sample] = True
                     break
@@ -127,7 +203,7 @@ def mixing_many_samples(
                 else:
                     indexes = list(
                         filter(lambda x: x not in [sample] and len(current_reads_actually_at_position[x]) > 0,
-                               range(0, len(inputs) - 1)))
+                               range(0, len(inputs))))
                     if len(indexes)==0:
                         continue
                     random_ind = choice(indexes)
@@ -139,7 +215,6 @@ def mixing_many_samples(
         output.close()
     for input in inputs:
         input.close()
-
 
 
 def main():
@@ -172,27 +247,12 @@ def main():
         samples.append(sample[1][0])
         cram_files[sample[1][0]] = (f"{sample[1][1]}", f"{sample[1][1]}.crai")
 
-    if args.test:
-        samples = samples[:3]
+    # if args.test:
+    #     samples = samples[:4]
 
-
-
-
-    # for i in range(len(samples)):
-    #     sample = samples[i]
-    #     input_cram_file = b.read_input_group(
-    #         cram=cram_files[sample][0], index=cram_files[sample][1]
-    #     )
-    #     j_header = b.new_job(
-    #         name=f"get_header_{sample}",
-    #         attributes={"sample_id": sample, "job_type": "get_header"},
-    #     )
-    #     j_header.image(SAMTOOLS_IMAGE).storage("15Gi").memory('15Gi')
-    #     j_header.command(
-    #         f"samtools view -H {input_cram_file['cram']} > {j_header[f'{sample}']}"
-    #     )
-
+    mixed_labels = []
     for contam_rate in CONTAM_RATES:
+        print(contam_rate)
         mixed_crams = {}
         mixed_gvcfs = {}
         mix_gvcf_job_depend_list = []
@@ -201,130 +261,134 @@ def main():
             mixing_samples_label = f"{sample}_{contam_rate * 100}"
             mixed_crams[mixing_samples_label] = {}
             mixed_gvcfs[mixing_samples_label] = {}
-        for chromosome in CHROMOSOMES:
-            if args.test:
-                chromosome = 'chr21'
-            output_mix_cram_paths = [f'{MY_BUCKET}/mixed_samples/v2/crams/cram_by_chrom/{sample}/contam_rate_{contam_rate*100}/{sample}_{chromosome}_{contam_rate*100}.cram' for sample in samples]
-            output_mix_vcf_paths = [
-                f'{MY_BUCKET}/mixed_samples/v2/variant-calling/{sample}/{sample}_{contam_rate * 100}/{sample}_{contam_rate * 100}_{chromosome}.g.vcf'
-                for sample in samples]
-            j_reheader_depend_on = None
-            if any([not hl.hadoop_exists(path) for path in output_mix_cram_paths]):
-                logger.info(
-                    f"Mixing contamination free crams: {chromosome}_{contam_rate*100}_percent_contamination..."
-                )
-                j_mix = b.new_python_job(
-                    name=f"Mix_all_samples_{chromosome}",
-                    attributes={
-                        "contam_rate": f"{contam_rate * 100}\%",
-                        "chromosome": chromosome,
-                        "job_type": "mixing_samples",
-                    },
-                )
-                j_mix.storage("50Gi").memory("10Gi")
-                cram_paths = [
-                    f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
-                    for sample_id in samples]
-                inputs = [b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"}) for path in
-                                     cram_paths]
-                outputs = [j_mix[f'{sample}_{chromosome}'] for sample in samples]
 
-                j_mix.call(
-                    mixing_many_samples,
-                    input_list=inputs,
-                    output_list=outputs,
-                    sample_list=samples,
-                    input_ref_fasta=input_ref_fasta['fasta'],
-                    chromosome=chromosome,
-                    contam_rate=contam_rate
-                )
-                j_reheader_depend_on = j_mix
-                mix_cram_job_depend_list.append(j_mix)
-
-                for i in range(len(samples)):
-                    mixing_samples_label = f"{samples[i]}_{contam_rate * 100}"
-                    output_cram_path = output_mix_cram_paths[i]
-                    b.write_output(outputs[i], output_cram_path)
-                    mixed_crams[mixing_samples_label][chromosome] = outputs[i]
-
-
-            for i in range(len(samples)):
-                sample = samples[i]
-                mixing_samples_label = f"{sample}_{contam_rate * 100}"
-                j_gvcf_depend_on = None
-                if not hl.hadoop_exists(f"{output_mix_cram_paths[i]}.crai"):
-                    j_reheader = b.new_job(
-                        name=f"Reheader_contam_free_file_{mixing_samples_label}_{chromosome}",
+        if args.run_mixing:
+            for chromosome in CHROMOSOMES:
+                if args.test:
+                    chromosome = 'chr21'
+                output_mix_cram_paths = [f'{MY_BUCKET}/mixed_samples/v2/crams/cram_by_chrom/{sample}/contam_rate_{contam_rate*100}/{sample}_{chromosome}_{contam_rate*100}.cram' for sample in samples]
+                output_mix_vcf_paths = [
+                    f'{MY_BUCKET}/mixed_samples/v2/variant-calling/{sample}_{contam_rate * 100}/{sample}_{contam_rate * 100}_{chromosome}.g.vcf'
+                    for sample in samples]
+                j_reheader_depend_on = None
+                if any([not hl.hadoop_exists(path) for path in output_mix_cram_paths]):
+                    logger.info(
+                        f"Mixing contamination free crams: {chromosome}_{contam_rate*100}_percent_contamination..."
+                    )
+                    j_mix = b.new_python_job(
+                        name=f"Mix_all_samples_{chromosome}_{contam_rate*100}",
                         attributes={
-                            "sample": sample,
                             "contam_rate": f"{contam_rate * 100}\%",
                             "chromosome": chromosome,
-                            "job_type": "run_reheader",
+                            "job_type": "mixing_samples",
                         },
                     )
-                    j_reheader.image(SAMTOOLS_IMAGE).storage("40Gi").memory("15Gi")
+                    if chromosome == 'chr2':
+                        j_mix.storage("100Gi").memory("50Gi")
+                    else:
+                        j_mix.storage("100Gi").memory("15Gi")
+                    cram_paths = [
+                        f"{MY_BUCKET}/contam_free/crams/cram_by_chrom/{sample_id}/{sample_id}_contam_free_{chromosome}.cram"
+                        for sample_id in samples]
+                    inputs = [b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"}) for path in
+                                         cram_paths]
+                    outputs = [j_mix[f'{sample}_{chromosome}'] for sample in samples]
 
-                    if j_reheader_depend_on is not None:
-                        j_reheader.depends_on(j_reheader_depend_on)
-                    logger.info(
-                        f"Reheadering contamination free cram: {sample}_{chromosome}_{contam_rate * 100}_percent_contamination..."
+                    j_mix.call(
+                        mixing_many_samples,
+                        input_list=inputs,
+                        output_list=outputs,
+                        sample_list=samples,
+                        input_ref_fasta=input_ref_fasta['fasta'],
+                        chromosome=chromosome,
+                        contam_rate=contam_rate
                     )
-                    input_cram_file = b.read_input_group(
-                        cram=cram_files[sample][0], index=cram_files[sample][1]
-                    )
-                    tmp_mix_cram = b.read_input(output_mix_cram_paths[i])
-                    j_reheader.command(
-                        f"samtools view -H {input_cram_file['cram']} > {j_reheader.header}"
-                    )
-                    j_reheader.command(
-                        f"samtools reheader {j_reheader.header} {tmp_mix_cram} > {j_reheader.ofile1}"
-                    )
-                    j_reheader.command(
-                        f"samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}"
-                    )
-                    mix_cram_job_depend_list.append(j_reheader)
-                    b.write_output(j_reheader.ofile1, output_mix_cram_paths[i])
-                    b.write_output(j_reheader.ofile2, f"{output_mix_cram_paths[i]}.crai")
-                    mixed_crams[mixing_samples_label][chromosome] = j_reheader.ofile1
-                    j_gvcf_depend_on.append(j_reheader)
-                else:
-                    path = output_mix_cram_paths[i]
-                    input_mixed_cram = b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"})
-                    mixed_crams[mixing_samples_label][chromosome] = input_mixed_cram['cram']
+                    j_reheader_depend_on = j_mix
+                    mix_cram_job_depend_list.append(j_mix)
 
-                if not hl.hadoop_exists(output_mix_vcf_paths[i]):
-                    logger.info(
-                        f"Running haplotype caller: {sample}_{chromosome}_{contam_rate*100}_percent_contamination..."
-                    )
-                    input_chrom_cram_file = b.read_input_group(
-                        **{
-                            "cram": output_mix_cram_paths[i],
-                            "cram.crai": f"{output_mix_cram_paths[i]}.crai",
-                        }
-                    )
-                    tmp_gvcf, tmp_job = haplotype_caller_gatk(
-                        b=b,
-                        depend_on=j_gvcf_depend_on,
-                        input_bam=input_chrom_cram_file,
-                        ref_fasta=input_ref_fasta,
-                        interval_list_file=chromosome,
-                        out_dir=f"{MY_BUCKET}/mixed_samples/v2",
-                        contamination=0.0,
-                        bam_filename_no_ext=f"{sample}_{contam_rate * 100}_{chromosome}",
-                        storage=40,
-                        interval_list_name=None,
-                        memory=26,
-                    )
-                    mix_gvcf_job_depend_list.append(tmp_job)
-                    mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
-                else:
-                    tmp_gvcf = b.read_input(output_mix_vcf_paths[i])
-                    mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
+                    for i in range(len(samples)):
+                        mixing_samples_label = f"{samples[i]}_{contam_rate * 100}"
+                        output_cram_path = output_mix_cram_paths[i]
+                        b.write_output(outputs[i], output_cram_path)
+                        mixed_crams[mixing_samples_label][chromosome] = outputs[i]
 
-            if args.test:
-                break
 
-        mixed_labels=[]
+                for i in range(len(samples)):
+                    sample = samples[i]
+                    mixing_samples_label = f"{sample}_{contam_rate * 100}"
+                    j_gvcf_depend_on = None
+                    if not hl.hadoop_exists(f"{output_mix_cram_paths[i]}.crai"):
+                        j_reheader = b.new_job(
+                            name=f"Reheader_contam_free_file_{mixing_samples_label}_{chromosome}",
+                            attributes={
+                                "sample": sample,
+                                "contam_rate": f"{contam_rate * 100}\%",
+                                "chromosome": chromosome,
+                                "job_type": "run_reheader",
+                            },
+                        )
+                        j_reheader.image(SAMTOOLS_IMAGE).storage("40Gi").memory("15Gi")
+
+                        if j_reheader_depend_on is not None:
+                            j_reheader.depends_on(j_reheader_depend_on)
+                        logger.info(
+                            f"Reheadering contamination free cram: {sample}_{chromosome}_{contam_rate * 100}_percent_contamination..."
+                        )
+                        header_cram_file = b.read_input_group(
+                            cram=cram_files['HGDP00021'][0], index=cram_files['HGDP00021'][1]
+                        )
+                        tmp_mix_cram = b.read_input(output_mix_cram_paths[i])
+                        j_reheader.command(
+                            f"samtools view -H {header_cram_file['cram']} > {j_reheader.header}"
+                        )
+                        j_reheader.command(
+                            f"samtools reheader {j_reheader.header} {tmp_mix_cram} > {j_reheader.ofile1}"
+                        )
+                        j_reheader.command(
+                            f"samtools index {j_reheader.ofile1} -o {j_reheader.ofile2}"
+                        )
+                        mix_cram_job_depend_list.append(j_reheader)
+                        b.write_output(j_reheader.ofile1, output_mix_cram_paths[i])
+                        b.write_output(j_reheader.ofile2, f"{output_mix_cram_paths[i]}.crai")
+                        mixed_crams[mixing_samples_label][chromosome] = j_reheader.ofile1
+                        j_gvcf_depend_on = j_reheader
+                    else:
+                        path = output_mix_cram_paths[i]
+                        input_mixed_cram = b.read_input_group(**{"cram": path, "cram.crai": f"{path}.crai"})
+                        mixed_crams[mixing_samples_label][chromosome] = input_mixed_cram['cram']
+
+                    if not hl.hadoop_exists(output_mix_vcf_paths[i]):
+                        logger.info(
+                            f"Running haplotype caller: {sample}_{chromosome}_{contam_rate*100}_percent_contamination..."
+                        )
+                        input_chrom_cram_file = b.read_input_group(
+                            **{
+                                "cram": output_mix_cram_paths[i],
+                                "cram.crai": f"{output_mix_cram_paths[i]}.crai",
+                            }
+                        )
+                        tmp_gvcf, tmp_job = haplotype_caller_gatk(
+                            b=b,
+                            depend_on=j_gvcf_depend_on,
+                            input_bam=input_chrom_cram_file,
+                            ref_fasta=input_ref_fasta,
+                            interval_list_file=chromosome,
+                            out_dir=f"{MY_BUCKET}/mixed_samples/v2",
+                            contamination=0.0,
+                            bam_filename_no_ext=f"{sample}_{contam_rate * 100}_{chromosome}",
+                            storage=40,
+                            interval_list_name=None,
+                            memory=26,
+                        )
+                        mix_gvcf_job_depend_list.append(tmp_job)
+                        mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
+                    else:
+                        tmp_gvcf = b.read_input(output_mix_vcf_paths[i])
+                        mixed_gvcfs[mixing_samples_label][chromosome] = tmp_gvcf
+
+                if args.test:
+                    break
+
         for sample in samples:
             mixing_samples_label = f"{sample}_{contam_rate * 100}"
             mixed_labels.append(mixing_samples_label)
@@ -348,11 +412,11 @@ def main():
                 tmp_cram_lst = reduce(
                     lambda x, y: x + " " + y, mixed_crams[mixing_samples_label].values()
                 )
-                input_cram_file = b.read_input_group(
-                    cram=cram_files[sample][0], index=cram_files[sample][1]
+                header_cram_file = b.read_input_group(
+                    cram=cram_files['HGDP00021'][0], index=cram_files['HGDP00021'][1]
                 )
                 j_cat.command(
-                    f"samtools view -H {input_cram_file['cram']} > {j_cat.header}"
+                    f"samtools view -H {header_cram_file['cram']} > {j_cat.header}"
                 )
                 j_cat.command(
                     f"samtools cat -h {j_cat.header} -o {j_cat.ofile1} {tmp_cram_lst}"
@@ -380,7 +444,7 @@ def main():
                 )
             if not hl.hadoop_exists(
                 f"{MY_BUCKET}/mixed_samples/v2/merged-gvcf/{mixing_samples_label}.g.vcf.gz"
-            ) and hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/v2/variant-calling/{mixing_samples_label}/*.vcf'):
+            ) and hl.hadoop_exists(f'{MY_BUCKET}/mixed_samples/v2/variant-calling/{sample}_{contam_rate * 100}/{sample}_{contam_rate * 100}_chr1.g.vcf'):
                 logger.info(f"Running merge gvcfs: {mixing_samples_label}...")
                 gvcfs_to_merge = hl.utils.hadoop_ls(
                     f'{MY_BUCKET}/mixed_samples/v2/variant-calling/{mixing_samples_label}/*.vcf')
@@ -410,29 +474,16 @@ def main():
                 f"{MY_BUCKET}/mixed_samples/v2/merged-gvcf/{mixing_samples_label}.g.vcf.gz"
             ):
                 logger.info(f"Indexing gvcf: {mixing_samples_label}...")
-                gvcf_index_file = index_gvcf(
+                index_gvcf(
                     b=b,
                     input_vcf=merged_vcf,
                     output_vcf_ind_name=f"{mixing_samples_label}",
-                    out_dir=f"{MY_BUCKET}/mixed_samples",
+                    out_dir=f"{MY_BUCKET}/mixed_samples/v2",
                     storage="15",
                     memory="15"
                 )
         if args.test:
             break
-    if args.run_freemix_sum_table:
-        contam_est = []
-        split_labels = pd.DataFrame(
-            [i.split("_") for i in mixed_labels],
-            columns=["original", "contam_rate"],
-        )
-        for s in mixed_labels:
-            contam_est.append(
-                check_contam(1, f"{MY_BUCKET}/mixed_samples/v2/verifybamid/", s)
-            )
-        split_labels["freemix_score"] = contam_est
-        mixed_table = hl.Table.from_pandas(split_labels)
-        mixed_table.write(f"{MY_BUCKET}/hgdp_n_way_mixed_sample_freemix_score.ht")
     b.run()
 
 
@@ -454,18 +505,13 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "--run_mixing",
+        help="Whether to run mixing chromosomes",
+        action="store_true",
+    )
+    parser.add_argument(
         "--run-merge-gvcf-files",
         help="Whether to run freemix summary table",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--run-freemix-sum-table",
-        help="Whether to run freemix summary table",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--disable-sanity-check",
-        help="Whether to use sanity check in verifybamID",
         action="store_true",
     )
     args = parser.parse_args()
