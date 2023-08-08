@@ -1,0 +1,433 @@
+---
+title: "Final_supplement_figures"
+output: pdf_document
+date: "2022-10-15"
+---
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+source('~/Dropbox (Partners HealthCare)/contamination/R/constants.R')
+# detach('package:MASS',unload=TRUE)
+```
+### Fig.S1 | Number of high-quality homozygous variants with RR > 0
+```{r}
+save <- T
+figS1_n_hom_var_RR_above_0(save=save, height = 4, width = 6)
+```
+
+### Table.S1 | Number of high-quality homozygous variants with RR > X & refAB > 10%
+```{r}
+hom_var <- read_tsv(paste0(data_path, 'gnomad_v3_n_hom_var_final.tsv'))%>%
+  mutate(label = if_else(hgdp, 'hgdp', label),
+        contamination = if_else(label == 'broad', contamination/100, contamination),) %>%
+      mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)'), levels = c('broad', 'hgdp')),
+             contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination),) 
+```
+
+```{r}
+sum(hom_var$n_hom_var_RR_above_0 > 0)
+sum(hom_var$n_hom_var_RR_above_0 > 10000)
+sum(hom_var$n_hom_var_RR_above_0 > 20000)
+sum(hom_var$n_hom_var_RR_above_0 > 30000)
+sum(hom_var$n_hom_var_RR_above_0 > 100000)
+sum(hom_var$n_hom_var_RR_above_0 > 200000)
+```
+
+```{r}
+sum(hom_var$n_hom_var_refAB_above_10pct > 0)
+sum(hom_var$n_hom_var_refAB_above_10pct > 30)
+sum(hom_var$n_hom_var_refAB_above_10pct > 50)
+sum(hom_var$n_hom_var_refAB_above_10pct > 100)
+sum(hom_var$n_hom_var_refAB_above_10pct > 500)
+sum(hom_var$n_hom_var_refAB_above_10pct > 1000)
+```
+
+
+# gnomAD v3 - WGS
+## Load Data
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_meta <- read_tsv(paste0(data_path,'gnomad_v3_meta.tsv')) %>%
+  filter(release & s != 'LP6005441-DNA_A09') %>%
+  filter(label == 'broad' | hgdp)
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>%
+  filter(s %in% v3_meta$s) 
+v3_dp10 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) %>%
+  filter(s %in% v3_meta$s)
+v3_no_dp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) %>%
+  filter(s %in% v3_meta$s)
+v3_dp20_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp20.tsv')) %>%
+  filter(s %in% v3_meta$s)
+v3_dp20_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp20.tsv')) %>%
+  filter(s %in% v3_meta$s)
+```
+
+## Convert to long format
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20_long <- convert_to_long_format(v3_dp20, 'v3')
+v3_dp10_long <- convert_to_long_format(v3_dp10, 'v3')
+v3_no_dp_long <- convert_to_long_format(v3_no_dp, 'v3')
+v3_dp20_long_indel <- convert_to_long_format(v3_dp20_indel, 'v3')
+v3_dp20_long_all <- convert_to_long_format(v3_dp20_all, 'v3')
+```
+
+# gnomAD v2 - WES
+## Load Data
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_meta <- read_tsv(paste0(data_path,'gnomad_v2_meta.tsv')) %>%
+  filter(v2_release & project != 'C774' & n_het > 10000) 
+v2_dp20 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>%
+  filter(s %in% v2_meta$s)
+v2_dp10 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) %>%
+  filter(s %in% v2_meta$s)
+v2_no_dp <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) %>%
+  filter(s %in% v2_meta$s)
+```
+
+## Convert to long format
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_dp20_long <- convert_to_long_format(v2_dp20, 'v2')
+v2_dp10_long <- convert_to_long_format(v2_dp10, 'v2')
+v2_no_dp_long <- convert_to_long_format(v2_no_dp, 'v2')
+```
+
+### Main.Fig2
+```{r}
+v3_main <- v3_dp20 %>% 
+  mutate(label = factor(label, labels = c('Broad', 'Other'), levels = c('broad', 'hgdp')),
+         contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination),
+         data_type = '(A): gnomAD v3 (WGS)') %>%
+  select(mean_AB_snp_biallelic_af_adjust_10, n_snp_biallelic_af_10, contamination, label, data_type)
+v2_main <- v2_dp20 %>% 
+  select(mean_AB_snp_biallelic_af_adjust_10, n_snp_biallelic_af_10, contamination, label) %>%
+  mutate(label = if_else(label, 'Broad', 'Other'),
+         data_type = '(B): gnomAD v2 (WES)') 
+main_data <- rbind(v3_main %>% filter(label == 'Broad'), v3_main %>% filter(label == 'Other'), v2_main)
+main_var_cnt <-   main_data %>%
+    group_by(data_type) %>%
+    dplyr::summarize(mean_n_var = mean(n_snp_biallelic_af_10))
+```
+
+```{r}
+library(dplyr)
+main_data %>%
+    group_by(label, data_type) %>% 
+    dplyr::summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+main_data %>%
+    group_by(data_type) %>% 
+    dplyr::summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+```
+
+```{r}
+figure <- main_data %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = paste0('CHARR'), color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'gray')) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~data_type, scale = 'free') 
+# +
+#   geom_label(data = main_var_cnt, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),
+#              x = 0.013, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
+#   annotate(geom='text', x= 0.048, y=Inf,vjust = 1, label='y=x', family = 'Arial', size=6)
+save <- T
+if(save){
+  png(paste0(figure_path, 'M2_gnomad_contam_dp20_ref10_no_label.png'), height = 4, width = 7.5, units = 'in', res = 300)
+  print(figure)
+  dev.off()
+}
+figure
+```
+
+### Main Fig3
+```{r}
+save <- F
+figure1 = fig3_2_way_vs_n_way('Main3', save=save, height = 4, width = 6, type='gnomAD')
+figure2 = fig3_2_way_vs_n_way('Main3', save=save, height = 4, width = 6, type='sample')
+
+figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
+                             #vjust = 0, hjust = 0, 
+                             font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
+figure
+
+png(paste0(figure_path, 'Main3_hgdp_n_way_mixed_150_samples_passed.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+### Fig.S1 | gnomAD v3 with and without ref AF filter 
+```{r}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v3_dp20, version = 'v3', DP = '20', var_type =  'snp_figS1', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (0%, 100%)', 'ref-AF: (10%, 90%)'), height=4, width=7.5 )
+```
+
+
+### Fig.S2 | gnomAD v3 with different ref AF filters 
+```{r}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v3_dp20, version = 'v3', DP = '20', var_type =  'snp_figS2', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'), height=4, width=9 )
+```
+
+### Fig.S3 | gnomAD v2 with different ref AF filters 
+```{r}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v2_dp20, version = 'v2', DP = '20', var_type =  'snp_figS3', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'), height=4, width=9 )
+```
+
+
+### Fig.S4 | gnomAD v3 Linear regression with different DP filters
+```{r, fig.width=4cm}
+intercept <- T
+save <- F
+s2 <- get_figure_lm_by_dp_ref_AF(long_data_no_dp = v3_no_dp_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))), 
+                                long_data_dp10 =  v3_dp10_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))),
+                                long_data_dp20 =  v3_dp20_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))), 
+                                 version='v3', var_type = 'snp', 
+                                 name='S2A', intercept, save)
+s2
+```
+### Fig.S5 | gnomAD v2 Linear regression with different DP filters
+```{r, fig.width=4cm}
+intercept <- T
+save <- F
+s3 <- get_figure_lm_by_dp_ref_AF(long_data_no_dp = v2_no_dp_long, long_data_dp10 = v2_dp10_long, long_data_dp20 = v2_dp20_long, version='v2', var_type = 'snp', name='S2B', intercept, save)
+s3
+```
+
+```{r}
+# library(patchwork)
+# figureS2 <- s2 / s3
+# png(paste0(figure_path, 'S2_gnomad_contam_dp_all_snp_linear_model.png'), 
+#     height = 12, 
+#     width = 10, 
+#     units = 'in', 
+#     res = 300)
+# print(figureS2)
+# dev.off()
+
+figure = ggpubr::ggarrange(s2, NULL, s3, labels = c('(A) gnomAD v3 (WGS)', '', '(B) gnomAD v2 (WES)'), nrow=3, common.legend=TRUE, vjust = 0, hjust = 0, font.label = list(size = 10, color = "black", face = "bold", family = NULL),heights = c(0.18, 0.02, 0.18))
+figure = annotate_figure(figure, top = text_grob(paste0('CHARR ~ Freemix score (SNP)'), face = 'bold', size = 15))
+png(paste0(figure_path,'S2_gnomad_contam_dp_all_snp_linear_model.png'), height = 10, width = 10, units='in', res=300)
+print(figure)
+dev.off()
+```
+
+
+
+### Fig.S6 | gnomAD v3 Pearson's correlation test with different DP filters
+```{r, fig.width=4cm}
+save <- T
+v3_cor_df <- as.data.frame(rbind(get_corr_df(v3_no_dp_long, 'v3'), get_corr_df(v3_dp10_long, 'v3'), get_corr_df(v3_dp20_long, 'v3'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+get_figure_corr_by_ref_AF(v3_cor_df, 'v3', 'snp', '_all', save)
+```
+
+### Fig.S7 | gnomAD v2 Pearson's correlation test with different DP filters
+```{r, fig.width=4cm}
+save <- T
+v2_cor_df <- as.data.frame(rbind(get_corr_df(v2_no_dp_long, 'v2'), get_corr_df(v2_dp10_long, 'v2'), get_corr_df(v2_dp20_long, 'v2'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+get_figure_corr_by_ref_AF(v2_cor_df, 'v2', 'snp', '_all', save)
+```
+
+
+### Fig.S8 | gnomAD v3 CHARR vs. Freemix Score for SNPs INDELS and ALL 
+```{r}
+save <- T
+v3_full <- rbind(v3_dp20 %>% select(-pop), v3_dp20_indel, v3_dp20_all) %>% mutate(var_type = rep(c('SNPs', 'INDELs', 'ALL'), each = 59765))
+figS8_v3_snp_indel_all(v3_full, version = 'v3', name = 'S8', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (10%, 90%)'), height=4, width=9 )
+```
+
+### Fig.S9 | gnomAD v3 CHARR vs. Freemix Score for SNPs INDELS and ALL linear model
+```{r}
+save <- T
+v3_long_full <- convert_to_long_format(v3_full, 'v3')
+figS9_v3_snp_indel_all_lm(v3_long_full, 'v3', 'S9', save, height = 6, width = 10)
+```
+
+### Fig.S10 | gnomAD v3 | gnomAD v3 CHARR vs. Freemix Score for SNPs INDELS and ALL Pearson's correlation test
+```{r}
+save <- T
+figS10_v3_snp_indel_all_corr(v3_long_full, version='v3', name='S10', save, height=4, width=10)
+```
+
+### Fig.S11 | gnomAD v2 different reference allele frequency sources
+```{r}
+v2_dp20_new <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_using_v3_af_adjust_dp20_100.tsv')) %>%
+  filter(s %in% v2_meta$s)
+```
+
+```{r}
+v2_dp20_long_data_new <- convert_to_long_format(v2_dp20_new, 'v2')  %>% mutate(AF_source = 'AF Source: v3 (WGS)')
+v2_dp20_var_cnt_data_new <- get_n_hom_var_table(v2_dp20_new  %>% mutate(AF_source = 'AF Source: v3 (WGS)'))
+v2_dp20_long_data <- convert_to_long_format(v2_dp20, 'v2') %>% mutate(AF_source = 'AF Source: v2 (WES)')
+v2_dp20_var_cnt_data <- get_n_hom_var_table(v2_dp20 %>% mutate(AF_source = 'AF Source: v2 (WES)'))
+```
+
+```{r}
+v2_dp20_long_data_full <- rbind(v2_dp20_long_data_new, v2_dp20_long_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+v2_dp20_var_cnt_data_full <- rbind(v2_dp20_var_cnt_data_new, v2_dp20_var_cnt_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+```
+
+```{r}
+library(dplyr)
+v2_dp20_long_data_full  %>%
+    group_by(ref_AF, AF_source) %>% 
+    dplyr::summarize(tidy(cor.test(contamination, value)))
+```
+
+
+```{r}
+save <- T
+print(v2_dp20_var_cnt_data_full)
+figS11_v2_ref_af_source(v2_dp20_long_data_full, v2_dp20_var_cnt_data_full, 'S11', save=save, height = 6, width = 9)
+```
+
+### Fig.S12 | gnomAD v2 different reference allele frequency sources linear regression
+```{r}
+save <- T
+figS12_v2_ref_af_source_lm(long_data = v2_dp20_long_data_full, 'S12', save=save, height = 6, width = 10)
+```
+
+### Fig.S13 | gnomAD v2 different reference allele frequency sources Pearson's correlation 
+```{r}
+save <- T
+figS13_v2_ref_af_source_corr(v2_dp20_long_data_full, 'S13', save=save, height = 4, width = 7.5)
+```
+
+### Fig.S14 | gnomAD v3 with and without the 3 age genes:  ASXL1, TET2, DNMT3A
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20_age <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_age_gene.tsv')) %>%
+  filter(s %in% v3_meta$s)
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>%
+  filter(s %in% v3_meta$s)
+```
+
+```{r}
+v3_dp20_long_data_age <- convert_to_long_format(v3_dp20_age, 'v3') %>% mutate(source = '3 age gene removed')
+v3_dp20_var_cnt_data_age <- v3_dp20_age %>% filter(label != 'external') %>% get_n_hom_var_table(.) %>% mutate(source = '3 age gene removed')
+v3_dp20_long_data <- convert_to_long_format(v3_dp20, 'v3') %>% mutate(source = 'All SNPs') %>% select(-pop)
+v3_dp20_var_cnt_data <- v3_dp20 %>% filter(label != 'external') %>% get_n_hom_var_table(.) %>% mutate(source = 'All SNPs')
+```
+
+```{r}
+v3_dp20_long_data_full <- rbind(v3_dp20_long_data_age, v3_dp20_long_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)') & label != 'Other')
+v3_dp20_var_cnt_data_full <- rbind(v3_dp20_var_cnt_data_age, v3_dp20_var_cnt_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+```
+
+```{r}
+save <- T
+figS14_v3_remove_age_gene(v3_dp20_long_data_full, v3_dp20_var_cnt_data_full, 'S14', save=save, height = 6, width = 9)
+```
+### Fig.S15 | gnomAD v3 with and without the 3 age genes:  ASXL1, TET2, DNMT3A, linear regression
+```{r}
+save <- T
+figS15_v3_remove_age_gene_lm(v3_dp20_long_data_full, 'S15', save=save, height = 6, width = 10)
+```
+
+### Fig.S16 | gnomAD v3 with and without the 3 age genes:  ASXL1, TET2, DNMT3A, Pearson's correlation
+```{r}
+save <- T
+figS16_v3_remove_age_gene_corr(v3_dp20_long_data_full, 'S16', save=save, height = 4, width = 7.5)
+```
+### Fig.S17 | Age vs. CHARR
+```{r}
+save <- T
+figS17_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'S17', save=save, height = 4, width = 7.5)
+```
+
+
+### Fig.S20 | Freemix score old vs. recomputed version
+```{r}
+save <- T
+hgdp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>% 
+  mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external'))) 
+figS20_hgdp_freemix_before_after(hgdp, 'S20', save = save, height = 4, width = 6)
+```
+
+### Fig.S21 | CHARR vs. Freemix Score before and after on HGDP samples
+```{r}
+save <- T
+figS21_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S21', save=save, height = 5, width = 7.5)
+```
+
+
+### Fig.S22 | HGDP sample selection
+```{r}
+save = T
+fig22_hgdp_sample_selection('S22', save=save, height = 4, width = 10)
+```
+
+
+
+### Fig.S23 | CHARR vs. Freemix Score before and after on HGDP samples
+```{r}
+save=T
+figS23_sample_decontamination('S23', save=save, height = 4, width = 7.5)
+```
+
+
+### Fig.S24 | 2 way freemixscore vs. CHARR color by the truth
+```{r}
+save = F
+figure1 = figS24_2_way_color_by_truth('S24', save=save, height = 4, width = 6, type = 'gnomAD')
+figure2 = figS24_2_way_color_by_truth('S24', save=save, height = 4, width = 6, type = 'sample')
+figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
+                             #vjust = 0, hjust = 0, 
+                             font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
+figure
+
+png(paste0(figure_path, 'S24_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Fig.S25 | Two-way mixing results
+```{r}
+save = T
+figS25_two_way_mixing('S25', save=save, height = 4, width = 9)
+```
+
+### Fig.S26 | het/hom ratios of the two-way mixing results
+```{r}
+save = T
+figS26_two_way_mixing_het_hom_ratio('S26', save=save, height = 4, width = 7.5)
+```
+
+
+### Fig.S27 | N-way mixing results
+```{r}
+save = F
+figS27_n_way_mixing('S27', save=save, height = 4, width = 7.5, type = 'gnomAD')
+figS27_n_way_mixing('S27', save=save, height = 4, width = 7.5, type = 'sample')
+```
+
+### Fig.S28 | two-way vs. N-way mixing results
+```{r}
+save = T
+figS28_2_way_vs_n_way('S28', save=save, height = 5, width = 7.5, type = 'gnomAD')
+figS28_2_way_vs_n_way('S28', save=save, height = 5, width = 7.5, type = 'sample')
+```
+
+### Fig.S29 | 2 way freemixscore vs. CHARR color by the truth
+```{r}
+save = F
+figure1 = figS29_2_way_color_by_truth('S29', save=save, height = 4, width = 6, type = 'gnomAD')
+figure2 = figS29_2_way_color_by_truth('S29', save=save, height = 4, width = 6, type = 'sample')
+figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
+                             #vjust = 0, hjust = 0, 
+                             font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
+figure
+
+png(paste0(figure_path, 'S29_hgdp_n_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```

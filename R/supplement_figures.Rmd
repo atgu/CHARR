@@ -1,0 +1,1914 @@
+---
+title: "Supplement figures"
+output: pdf_document
+date: "2022-10-09"
+---
+
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+source('~/Dropbox (Partners HealthCare)/contamination/R/constants.R')
+```
+
+# gnomAD v3 - WGS
+## Load Data
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+v3_dp10 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) 
+v3_no_dp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+v3_dp20_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+v3_dp20_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_no_dp.tsv'))
+# v3_dp20_cpg <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_no_cpg_snp_bi_minimum_vds_af_adjust_dp20.tsv')) 
+# v3_dp10_cpg <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_no_cpg_snp_bi_minimum_vds_af_adjust_dp10.tsv')) 
+# v3_no_dp_cpg <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_no_cpg_snp_bi_minimum_vds_af_adjust_no_dp.tsv'))
+```
+
+## Convert to long format
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20_long <- convert_to_long_format(v3_dp20, 'v3')
+v3_dp10_long <- convert_to_long_format(v3_dp10, 'v3')
+v3_no_dp_long <- convert_to_long_format(v3_no_dp, 'v3')
+v3_dp20_long_indel <- convert_to_long_format(v3_dp20_indel, 'v3')
+v3_dp10_long_indel <- convert_to_long_format(v3_dp10_indel, 'v3')
+v3_no_dp_long_indel <- convert_to_long_format(v3_no_dp_indel, 'v3')
+v3_dp20_long_all <- convert_to_long_format(v3_dp20_all, 'v3')
+v3_dp10_long_all <- convert_to_long_format(v3_dp10_all, 'v3')
+v3_no_dp_long_all <- convert_to_long_format(v3_no_dp_all, 'v3')
+# v3_dp20_long_cpg <- convert_to_long_format(v3_dp20_cpg, 'v3')
+# v3_dp10_long_cpg <- convert_to_long_format(v3_dp10_cpg, 'v3')
+# v3_no_dp_long_cpg <- convert_to_long_format(v3_no_dp_cpg, 'v3')
+```
+
+## Scatter plots: Freemix score vs. CHARR
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- F
+get_figure_charr_freemix_by_ref_AF(v3_no_dp, version = 'v3', DP = 'no', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp10, version = 'v3', DP = '10', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp20, version = 'v3', DP = '20', var_type =  'snp', save = save)
+```
+
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- F
+get_figure_charr_freemix_by_ref_AF(v3_no_dp_indel, version = 'v3', DP = 'no', var_type =  'indel', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp10_indel, version = 'v3', DP = '10', var_type =  'indel', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp20_indel, version = 'v3', DP = '20', var_type =  'indel', save = save)
+```
+
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- F
+get_figure_charr_freemix_by_ref_AF(v3_no_dp_all, version = 'v3', DP = 'no', var_type =  'all', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp10_all, version = 'v3', DP = '10', var_type =  'all', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp20_all, version = 'v3', DP = '20', var_type =  'all', save = save)
+```
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v3_no_dp_cpg, version = 'v3', DP = 'no', var_type =  'no_cpg', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp10_cpg, version = 'v3', DP = '10', var_type =  'no_cpg', save = save)
+get_figure_charr_freemix_by_ref_AF(v3_dp20_cpg, version = 'v3', DP = '20', var_type =  'no_cpg', save = save)
+```
+
+## Pearson's Correlation
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_cor_df <- as.data.frame(rbind(get_corr_df(v3_no_dp_long, 'v3'), get_corr_df(v3_dp10_long, 'v3'), get_corr_df(v3_dp20_long, 'v3'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v3_cor_df_indel <- as.data.frame(rbind(get_corr_df(v3_no_dp_long_indel, 'v3'), get_corr_df(v3_dp10_long_indel, 'v3'), get_corr_df(v3_dp20_long_indel, 'v3'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v3_cor_df_all <- as.data.frame(rbind(get_corr_df(v3_no_dp_long_all, 'v3'), get_corr_df(v3_dp10_long_all, 'v3'), get_corr_df(v3_dp20_long_all, 'v3'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+# v3_cor_df_cpg <- as.data.frame(rbind(get_corr_df(v3_no_dp_long_cpg, 'v3'), get_corr_df(v3_dp10_long_cpg, 'v3'), get_corr_df(v3_dp20_long_cpg, 'v3'))) %>% 
+#   mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+#                             levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, fig.width=4cm}
+save <- F
+get_figure_corr_by_ref_AF(v3_cor_df, 'v3', 'snp', '_all', save)
+get_figure_corr_by_ref_AF(v3_cor_df_indel, 'v3', 'indel', '_all', save)
+get_figure_corr_by_ref_AF(v3_cor_df_all, 'v3', 'all', '_all', save)
+# get_figure_corr_by_ref_AF(v3_cor_df_cpg, 'v3', 'no_cpg', '_all', save)
+```
+
+## Linear Models
+
+```{r, fig.width=4cm}
+intercept <- F
+save <- T
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long, v3_dp10_long, v3_dp20_long, version='v3', var_type = 'snp', intercept, save)
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long_indel, v3_dp10_long_indel, v3_dp20_long_indel, 'v3', 'indel', intercept, save)
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long_all, v3_dp10_long_all, v3_dp20_long_all, 'v3', 'all', intercept, save)
+# get_figure_lm_by_dp_ref_AF(v3_no_dp_long_cpg, v3_dp10_long_cpg, v3_dp20_long_cpg, 'v3', 'no_cpg', intercept, save)
+```
+
+```{r, fig.width=4cm}
+intercept <- T
+save <- F
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long, v3_dp10_long, v3_dp20_long, version='v3', var_type = 'snp', intercept, save)
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long_indel, v3_dp10_long_indel, v3_dp20_long_indel, 'v3', 'indel', intercept, save)
+get_figure_lm_by_dp_ref_AF(v3_no_dp_long_all, v3_dp10_long_all, v3_dp20_long_all, 'v3', 'all', intercept, save)
+```
+
+# gnomAD v2 - WES
+## Load Data
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_dp20 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+v2_dp10 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) 
+v2_no_dp <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+```
+
+## Convert to long format
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_dp20_long <- convert_to_long_format(v2_dp20, 'v2')
+v2_dp10_long <- convert_to_long_format(v2_dp10, 'v2')
+v2_no_dp_long <- convert_to_long_format(v2_no_dp, 'v2')
+```
+
+## Scatter plots: Freemix score vs. CHARR
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v2_no_dp, version = 'v2', DP = 'no', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v2_dp10, version = 'v2', DP = '10', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v2_dp20, version = 'v2', DP = '20', var_type =  'snp', save = save)
+```
+
+## Scatter plots: Freemix score vs. CHARR
+```{r, fig.width=4cm, message=FALSE, warning=FALSE}
+save <- F
+get_figure_charr_freemix_by_ref_AF(v2_no_dp, version = 'v2', DP = 'no', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v2_dp10, version = 'v2', DP = '10', var_type =  'snp', save = save)
+get_figure_charr_freemix_by_ref_AF(v2_dp20, version = 'v2', DP = '20', var_type =  'snp', save = save)
+```
+
+## Pearson's Correlation
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_cor_df <- as.data.frame(rbind(get_corr_df(v2_no_dp_long, 'v2'), get_corr_df(v2_dp10_long, 'v2'), get_corr_df(v2_dp20_long, 'v2'))) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, fig.width=4cm}
+save <- T
+get_figure_corr_by_ref_AF(v2_cor_df, 'v2', 'snp', '_all', save)
+```
+
+```{r, fig.width=4cm}
+save <- T
+get_figure_corr_by_ref_AF(v2_cor_df, 'v2', 'snp', '_all', save)
+```
+
+## Linear Models
+
+```{r, fig.width=4cm}
+intercept <- F
+save <- T
+get_figure_lm_by_dp_ref_AF(v2_no_dp_long, v2_dp10_long, v2_dp20_long, version='v2', var_type = 'snp', intercept, save)
+```
+```{r, fig.width=4cm}
+intercept <- T
+save <- T
+get_figure_lm_by_dp_ref_AF(v2_no_dp_long, v2_dp10_long, v2_dp20_long, version='v2', var_type = 'snp', intercept, save)
+```
+
+
+# pop freq
+```{r}
+pop <- read_tsv('~/Downloads/gnomad_v3_contaminant_pop_freq_test_likelihood_filter_by_global_AF.tsv') 
+```
+
+```{r}
+# table(pop$true_pop, pop$inferred_pop_charr)
+table(pop$true_pop, pop$inferred_pop_global_c)
+```
+
+```{r}
+sum(pop$argmax_c!=0)
+sub_pop <- pop %>% filter(argmax_c!=0)
+table(sub_pop$true_pop, sub_pop$inferred_pop_global_c)
+```
+
+
+```{r}
+figure <- pop %>%
+  filter(argmax_c > 0) %>%
+  ggplot + aes(x = c, y = argmax_c) +
+  labs(x = 'CHARR', y = expression(c_m)) +
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  themes + theme_classic()
+figure
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_pop_infer_global_freq_c_vs_charr_upper_ref_AF_both.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+
+```{r}
+figure <- 
+pop %>%
+  filter(!(true_pop %in% c('ami', 'oth')))%>%
+  filter(!(inferred_pop_global_c %in% c('ami', 'oth')))%>%
+  filter(argmax_c!=0) %>%
+  group_by(true_pop, inferred_pop_global_c) %>%
+  dplyr::summarize(cnt = n()) %>% 
+ggplot + aes(x=true_pop, y=inferred_pop_global_c, fill=log10(cnt)) + 
+  labs(x = 'True population', y = 'Inferred population', fill='N samples') + 
+  geom_tile()+ 
+  # geom_abline(slope = 1, intercept = 0, lty = 3, color = 'white') +
+  scale_fill_viridis_c(option = "B", direction = -1) +
+geom_text(aes(true_pop, inferred_pop_global_c, label =cnt), color = "black", size = 4) + 
+  themes + theme_classic()
+figure
+png(paste0(figure_path, 'gnomad_v3_contam_pop_infer_global_freq_c_filter_by_global_AF_pop_filtered.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+```{r}
+figure <- 
+pop %>%
+  # filter(c <= 0.001) %>%
+  group_by(true_pop, inferred_pop_charr) %>%
+  dplyr::summarize(cnt = n()) %>% 
+ggplot + aes(x=true_pop, y=inferred_pop_charr, fill=log10(cnt)) + 
+  labs(x = 'True population', y = 'Inferred population', fill='N samples') + 
+  geom_tile()+ 
+  geom_abline(slope = 1, intercept = 0, lty = 3, color = 'white') +
+  scale_fill_viridis_c(option = "B", direction = -1) +
+geom_text(aes(true_pop, inferred_pop_charr, label =cnt), color = "black", size = 4) + 
+  themes + theme_classic()
+figure
+png(paste0(figure_path, 'gnomad_v3_contam_pop_infer_charr.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+```{r}
+figure <- 
+pop %>%
+   # filter(argmax_c!=0) %>%
+mutate(same_pop = if_else(true_pop==inferred_pop_global_c, 'Same', 'Different')) %>% 
+ggplot + aes(x=same_pop, y=c) + 
+  labs(x = 'Population comparison', y = 'CHARR') + 
+  geom_boxplot()+ 
+  scale_y_log10() +
+  themes + theme_classic()
+figure
+png(paste0(figure_path, 'gnomad_v3_contam_pop_infer_pop_vs_charr_filter_by_global_AF_boxplot.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+```{r}
+sub <- pop %>%
+  filter(!(true_pop %in% c('ami', 'oth')))%>%
+  filter(!(inferred_pop_global_c %in% c('ami', 'oth')))
+table(sub$true_pop == sub$inferred_pop_global_c)
+```
+
+
+```{r}
+pop <- read_tsv('~/Downloads/gnomad_v3_contaminant_pop_freq_test_likelihood_filter_by_global_AF.tsv')
+source('~/ukb_exomes/R/constants.R')
+pop_colors['mid']  <- pop_colors['mde'] 
+pop_names['mid']  <- pop_names['mde']
+pop_names['ami']  <- 'Amish'
+pop_colors['ami']  <- "#FFC0CB" 
+pop_names['afr']  <- "African" 
+pop <- pop %>%
+  mutate(ture_pop = factor(true_pop, levels=c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels=pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')] )) %>%
+  mutate(inferred_pop_global_c = factor(inferred_pop_global_c, levels=c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels=pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')] ))
+cnt <- pop %>%
+  group_by(ture_pop, inferred_pop_global_c) %>%
+  dplyr::summarize(cnt = n())
+```
+
+
+
+```{r}
+
+
+pop_colors <- pop_colors[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]
+figure <- 
+pop %>%
+  filter(!(true_pop %in% c('ami', 'oth'))) %>%
+  ggplot + aes(x=c,fill=true_pop) + 
+  labs(x = 'CHARR', y='Inferred population of contaminant', fill='Population') + 
+  geom_histogram()+ 
+  # geom_abline(slope = 1, intercept = 0, lty = 3, color = 'white') +
+  # scale_fill_viridis_c(option = "B", direction = -1) +
+  scale_y_log10() +
+  scale_x_continuous(labels = scales::percent) +
+  scale_fill_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  themes + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 1)) +
+  geom_text(data = cnt, aes(x = Inf, y=Inf, label =paste('N:', cnt), fill='black'), vjust = 1, hjust = 1, color = "black", size = 3) + 
+  facet_grid(inferred_pop_global_c ~ ture_pop, scale = 'free_y')
+figure
+png(paste0(figure_path, 'gnomad_v3_contam_pop_infer_global_freq_c_filter_by_global_AF_hist.png'), height = 8, width = 14, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+# c max
+```{r}
+c_max <- read_tsv('~/Downloads/gnomad_v3_contaminant_pop_freq_test_likelihood_c_max.tsv')%>%
+  mutate(label = if_else(hgdp, 'hgdp', label),
+        contamination = if_else(label == 'broad', contamination/100, contamination),) %>%
+      mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')),
+             contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination),) %>%
+  filter(contamination < 0.06 & !release) %>%
+  filter(label != 'Other')
+```
+```{r}
+figure <- c_max %>%
+  ggplot + aes(x = contamination, y = argmax_c, pch = label, color = pop) +
+  labs(x = 'Freemix Score', y = 'Argmax c', pch = 'Sequencing site', color = 'Population') +
+  geom_point(alpha=0.8, size = 2) + 
+  # geom_smooth()+
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'oth', 'sas'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'oth', 'sas')]) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 10),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top', legend.box="vertical", legend.justification=c(0,0),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.045, y=0.05, label='y=x', family = 'Arial', size=6) 
+figure
+cor.test(c_max$argmax_c, c_max$contamination)
+```
+```{r}
+figure <- c_max %>%
+  mutate(ture_pop = factor(true_pop, levels=c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels=pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')] )) %>%
+  ggplot + aes(x = c, y = argmax_c, color = pop) +
+  labs(x = 'CHARR', y = bquote(c[mle]), color = 'Population') +
+  geom_point(alpha=0.8, size = 2) + 
+  # geom_smooth()+
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 10),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+       # legend.position = 'top', legend.box="vertical", legend.justification=c(0,0),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=Inf, y=Inf, vjust = 1, hjust = 1, label='y=x', family = 'Arial', size=6) 
+figure
+# cor.test(c_max$argmax_c, c_max$contamination)
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_c_mle_vs_charr.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+```{r}
+figure <- c_max %>%
+  mutate(ture_pop = factor(true_pop, levels=c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels=pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')] )) %>%
+  ggplot + aes(x = contamination, y = c, color = pop) +
+  labs(x = 'Freemix Score', y = 'CHARR', color = 'Population') +
+  geom_point(alpha=0.8, size = 1.5) + 
+  # geom_smooth()+
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) + themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+       # legend.position = 'top', legend.box="vertical", legend.justification=c(0,0),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.045, y=0.05, label='y=x', family = 'Arial', size=6) 
+figure
+cor.test(c_max$argmax_c, c_max$contamination)
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_Freemix_score_vs_charr.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+
+
+```{r}
+  c_max %>%
+    filter(!release & !is.na(label)) %>%
+    group_by(pop) %>% 
+    dplyr::summarize(tidy(cor.test(contamination, c)))
+table(c_max$pop)
+```
+```{r}
+hom_var <- read_tsv(paste0(data_path, 'gnomad_v3_n_hom_var_final.tsv'))%>%
+  mutate(label = if_else(hgdp, 'hgdp', label),
+        contamination = if_else(label == 'broad', contamination/100, contamination),) %>%
+      mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)'), levels = c('broad', 'hgdp')),
+             contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination),) 
+```
+```{r}
+summary(hom_var)
+```
+```{r}
+sum(hom_var$n_hom_var_RR_above_0 > 0)
+sum(hom_var$n_hom_var_RR_above_0 > 10000)
+sum(hom_var$n_hom_var_RR_above_0 > 20000)
+sum(hom_var$n_hom_var_RR_above_0 > 30000)
+sum(hom_var$n_hom_var_RR_above_0 > 100000)
+sum(hom_var$n_hom_var_RR_above_0 > 200000)
+```
+```{r}
+sum(hom_var$n_hom_var_refAB_above_10pct > 0)
+sum(hom_var$n_hom_var_refAB_above_10pct > 30)
+sum(hom_var$n_hom_var_refAB_above_10pct > 50)
+sum(hom_var$n_hom_var_refAB_above_10pct > 100)
+sum(hom_var$n_hom_var_refAB_above_10pct > 500)
+sum(hom_var$n_hom_var_refAB_above_10pct > 1000)
+```
+
+```{r}
+hist(hom_var$n_hom_var)
+hist(hom_var$n_hom_var_RR_above_0)
+hist(hom_var$n_hom_var_refAB_above_1pct)
+hist(hom_var$n_hom_var_refAB_above_5pct)
+hist(hom_var$n_hom_var_refAB_above_10pct)
+hist(hom_var$mean_refAB)
+```
+```{r}
+plot(hom_var$contamination, hom_var$n_hom_var, col=pop_colors[hom_var$true_pop])
+plot(hom_var$contamination, hom_var$n_hom_var_RR_above_0, col=pop_colors[hom_var$true_pop])
+plot(hom_var$contamination, hom_var$n_hom_var_refAB_above_1pct, col=pop_colors[hom_var$true_pop])
+plot(hom_var$contamination, hom_var$n_hom_var_refAB_above_5pct, col=pop_colors[hom_var$true_pop])
+plot(hom_var$contamination, hom_var$n_hom_var_refAB_above_10pct, col=pop_colors[hom_var$true_pop])
+plot(hom_var$contamination, hom_var$mean_refAB, col=pop_colors[hom_var$true_pop])
+```
+```{r}
+figure <- hom_var %>%
+  mutate(pass = if_else(c < 0.005, 'CHARR < 0.5%', 'CHARR > 0.5%')) %>%
+  ggplot + aes(x = n_hom_var, color=pass, fill=pass) + 
+  labs(x = 'Number of homozygous variants',  y=NULL, color = NULL, fill = NULL) +
+  geom_histogram(bins = 50, alpha=0.5) + 
+  scale_x_log10(label = comma)+ 
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') +
+  # scale_color_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  #   scale_fill_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  themes + theme_classic() + 
+  theme(legend.position = c(0.8,0.8))
+figure
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_n_hom_var.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+```{r}
+figure <- hom_var %>%
+  mutate(pass = if_else(c < 0.005, 'CHARR < 0.5%', 'CHARR > 0.5%')) %>%
+  ggplot + aes(x = n_hom_var_RR_above_0, color=pass, fill=pass) + 
+  labs(x = 'Number of homozygous variants with RR > 0',  y=NULL, color = NULL, fill = NULL) +
+  geom_histogram(bins = 50, alpha=0.5) + 
+  scale_x_log10(label = comma)+ 
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') +
+  # scale_color_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  #   scale_fill_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  themes + theme_classic() + 
+  theme(legend.position = c(0.8,0.8))
+figure
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_n_hom_var_RR_above_0.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+```{r}
+figure <- hom_var %>%
+  ggplot + aes(x = n_hom_var_refAB_above_10pct) + 
+  labs(x = 'Number of homozygous variants with ref-AB > 10%', y=NULL) +
+  geom_histogram(bins = 50) + 
+  scale_x_log10(label = comma)+ 
+  # scale_color_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  #   scale_fill_manual(values = pop_colors, breaks = c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth'), labels = pop_names[c('afr', 'ami','amr', 'asj','eas','fin',  'mid', 'nfe','sas','oth')]) +
+  themes + theme_classic()
+figure
+save <- T
+if(save){
+ png(paste0(figure_path, 'gnomad_v3_contam_n_hom_var_refAB_above_10pct_no_col.png'), height = 4, width = 6, units = 'in', res = 300)
+  print(figure)
+  dev.off() 
+}
+```
+
+```{r}
+tsv <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv'))
+tsv <- tsv %>% filter(subsets.hgdp) %>% select(s, pcr = bergstrom.library_type) 
+hgdp <- v3_dp20 %>% mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')))  %>% merge(., tsv, by = 's') %>% mutate(pcr = if_else(!is.na(pcr), pcr, 'Broad (gnomAD)'))
+```
+
+```{r}
+figS20_hgdp_charr_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, width = 7.5){
+  # pop_colors['Broad (gnomAD)'] <- '#D6CFC7'
+  # pop_colors['mid']  <- pop_colors['mde'] 
+  # pop_names['mid']  <- pop_names['mde']
+  # pop_colors <- pop_colors[c('afr', 'amr', 'eas', 'mid', 'nfe', 'oth', 'sas', 'Broad (gnomAD)')]
+  hgdp <- rbind(
+    hgdp %>% filter(label ==  'Broad (gnomAD)'),
+    hgdp %>% filter(label ==  'Sanger (HGDP)')
+  ) %>% filter(final_release & contamination < 0.06) %>%
+    mutate(Version = 'Old', contamination=contamination) %>%
+    rbind(
+      rbind(
+        hgdp %>% filter(label ==  'Broad (gnomAD)'),
+        hgdp %>% filter(label ==  'Sanger (HGDP)')
+      )%>%
+        filter(final_release & contamination < 0.06) %>%
+        mutate(Version = 'Recomputed', contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination))
+    )
+  figure <- hgdp %>%
+    filter(pcr == 'PCR') %>%
+    ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, pch = label, color = pcr) +
+    labs(x = 'Freemix Score', y = 'CHARR (20 < DP < 100)', pch = 'Sequencing site', color = 'PCR-FREE') +
+    geom_point(alpha=0.8, size = 2) + 
+    geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+    #scale_color_manual(values = c('#1b9e77', '#d95f02', '#D6CFC7'), breaks = c('PCR', 'PCRfree', 'Broad (gnomAD)')) +
+    themes +  theme_classic() + 
+    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+          legend.text = element_text(family = 'Arial', size = 10),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          legend.position = 'top', legend.box="vertical",
+          axis.text = element_text(family = 'Arial', size = 12),
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+    annotate(geom='text', x=0.045, y=0.05, label='y=x', family = 'Arial', size=6) + 
+    facet_grid(~Version) 
+  if(save){
+    png(paste0(figure_path, name, '_gnomad_v3_hgdp_verifybamID_comparison.png'), height = height, width = width, units = 'in', res = 300)
+    print(figure)
+    dev.off()
+  }
+  return(figure)
+}
+```
+
+```{r}
+figure
+```
+
+
+```{r}
+  source('~/ukb_exomes/R/constants.R')
+  pop_colors['Broad (gnomAD)'] <- 'white'
+  pop_colors['mid']  <- pop_colors['mde'] 
+  pop_names['mid']  <- pop_names['mde']
+  pop_colors <- pop_colors[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]
+  hgdp <- rbind(
+    hgdp %>% filter(label ==  'Sanger (HGDP)')) %>% filter(final_release & contamination < 0.03) %>%
+    mutate(contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination))
+  figure <- hgdp %>%
+    mutate(pop = if_else(label == 'Broad (gnomAD)', 'Broad (gnomAD)', pop)) %>%
+    filter(s %in% c('HGDP01009', 'HGDP01099', 'HGDP00675','HGDP00909', 'HGDP00901')) %>%
+    ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = pop) +
+    labs(x = 'Freemix Score', y = 'CHARR', color = 'Population') +
+    geom_point(alpha=0.8, size = 2) + 
+    geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+    scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) +
+    themes +  theme_classic() + 
+    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+   #       legend.position = 'top', legend.box="vertical", legend.justification=c(0,0),
+          axis.text = element_text(family = 'Arial', size = 12),
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+    annotate(geom='text', x=Inf, y=Inf, vjust=1, hjust=1,label='y=x', family = 'Arial', size=6) 
+  figure
+  png(paste0(figure_path,'gnomad_v3_hgdp_population_recomputed.png'), height = 4, width = 8, units = 'in', res = 300)
+  print(figure)
+  dev.off()
+```
+
+
+## Check Edoardo's results
+```{r}
+# e_full <- read_tsv('~/Downloads/results_full.tsv')
+# e_chr1 <- read_tsv('~/Downloads/results_chr1only.tsv')
+our_10 <- read.csv('~/Downloads/hgdp_5samples_charr_split_multi_10perc.csv',sep = '\t')
+our_1 <- read.csv('~/Downloads/hgdp_5samples_charr_split_multi_1perc.csv',sep = '\t')
+e_full_new1 <- read_tsv('~/Downloads/results_221128_refAF0.01-0.99.tsv')
+e_full_new10 <- read_tsv('~/Downloads/results_221128_refAF0.1-0.9.tsv')
+```
+
+```{r}
+hgdp_sub_1 <- our_1 %>%
+  merge(., e_full_new1 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+
+hgdp_sub_10 <- our_10 %>%
+  merge(., e_full_new10 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+
+```
+
+
+```{r}
+hgdp_sub_1 %>%
+  ggplot + aes(x = charr, y = CHARR) + 
+  labs(x = 'Our CHARR (1% < refAF < 99%)', y = "Edoardo's CHARR (1% < refAF < 99%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+```{r}
+hgdp_sub_10 %>%
+  ggplot + aes(x = charr, y = CHARR) + 
+  labs(x = 'Our CHARR (10% < refAF < 90%)', y = "Edoardo's CHARR (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+```{r}
+hgdp_sub <- our %>%
+  merge(., e_full_new1 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') %>%
+  merge(., e_full_new10 %>% select(1, 6), by.x = 's', by.y='#SAMPLE')
+
+hgdp_sub <- hgdp %>%
+  merge(., our, by = 's') %>%
+  select(mean_AB_snp_biallelic_af_adjust_10, charr)
+
+```
+
+```{r}
+hgdp_sub %>%
+  ggplot + aes(x = charr, y = mean_AB_snp_biallelic_af_adjust_10) + 
+  labs(x = 'Our CHARR (1% < refAF < 99%)', y = "Edoardo's CHARR (1% < refAF < 99%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+
+```{r}
+hgdp_sub %>%
+  ggplot + aes(x = charr, y = CHARR.x) + 
+  labs(x = 'Our CHARR (1% < refAF < 99%)', y = "Edoardo's CHARR (1% < refAF < 99%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+```{r}
+hgdp_sub %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, y = CHARR.y) + 
+  labs(x = 'Our CHARR (10% < refAF < 90%)', y = "Edoardo's CHARR (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+cor.test(hgdp_sub$mean_AB_snp_biallelic_af_adjust_10, hgdp_sub$CHARR.y)
+```
+
+
+```{r}
+hgdp_sub %>%
+  ggplot + aes(x = charr, y = CHARR.y) + 
+  labs(x = 'Our CHARR (10% < refAF < 90%)', y = "Edoardo's CHARR (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+cor.test(hgdp_sub$charr, hgdp_sub$CHARR.y)
+```
+
+
+```{r}
+hgdp_sub %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_1, y = CHARR.y) + 
+  labs(x = 'Our CHARR (1% < refAF < 99%)', y = "Edoardo's CHARR (chr 1)") +
+  geom_point()+ 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+# Result 12/8
+
+## Our main results
+```{r}
+tsv <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv'))
+tsv <- tsv %>% filter(subsets.hgdp) %>% select(s, pcr = bergstrom.library_type) 
+hgdp <- v3_dp20 %>% mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')))  %>% merge(., tsv, by = 's') %>% mutate(pcr = if_else(!is.na(pcr), pcr, 'Broad (gnomAD)'))
+```
+
+## Our split multi results
+```{r}
+our_10 <- read.csv('~/Downloads/hgdp_5samples_charr_split_multi_10perc.csv',sep = '\t')
+our_1 <- read.csv('~/Downloads/hgdp_5samples_charr_split_multi_1perc.csv',sep = '\t')
+```
+
+## Edoardo's new results
+```{r}
+e_all_new <- read_tsv('~/Downloads/results_230110_biallelicSNVsNoNorm_refAF0.1-0.9.tsv')
+# e_all_new1 <- read_tsv('~/Downloads/results/results_refAF0.01-0.99_allvars.tsv')
+# e_all_new10 <- read_tsv('~/Downloads/results/results_refAF0.1-0.9_allvars.tsv')
+# e_bi_new1 <- read_tsv('~/Downloads/results/results_refAF0.01-0.99_biallelic.tsv')
+# e_bi_new10 <- read_tsv('~/Downloads/results/results_refAF0.1-0.9_biallelic.tsv')
+```
+
+```{r}
+hgdp_all_10 <- our_10 %>%
+  merge(., e_all_new %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+
+# hgdp_all_1 <- our_1 %>%
+#   merge(., e_all_new1 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+# 
+# hgdp_all_10 <- our_10 %>%
+#   merge(., e_all_new10 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+```
+
+```{r}
+hgdp_all_1 %>%
+  ggplot + aes(x = charr, y = CHARR) + 
+  labs(x = 'Our CHARR allvar (1% < refAF < 99%)', y = "Edoardo's CHARR allvar (1% < refAF < 99%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+```{r}
+hgdp_all_10 %>%
+  ggplot + aes(x = charr, y = CHARR) + 
+  labs(x = 'Our CHARR allvar (10% < refAF < 90%)', y = "Edoardo's CHARR allvar (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+
+```{r}
+hgdp_bi <- hgdp %>%
+  merge(., e_bi_new1 %>% select(1, 6), by.x = 's', by.y='#SAMPLE') %>%
+  merge(., e_bi_new10 %>% select(1, 6), by.x = 's', by.y='#SAMPLE')
+
+hgdp_bi <- hgdp %>%
+  merge(., e_all_new %>% select(1, 6), by.x = 's', by.y='#SAMPLE') 
+```
+
+```{r}
+hgdp_bi %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, y = CHARR) + 
+  labs(x = 'Our CHARR bi-allelic (10% < refAF < 90%)', y = "Edoardo's CHARR bi-allelic (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+```{r}
+hgdp_bi %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_1, y = CHARR.x) + 
+  labs(x = 'Our CHARR bi-allelic (1% < refAF < 99%)', y = "Edoardo's CHARR bi-allelic (1% < refAF < 99%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+```{r}
+hgdp_bi %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, y = CHARR.y) + 
+  labs(x = 'Our CHARR bi-allelic (10% < refAF < 90%)', y = "Edoardo's CHARR bi-allelic (10% < refAF < 90%)") + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, lty=2)
+```
+
+
+## Generate sample info
+```{r}
+tsv <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv'))
+tsv <- tsv %>% filter(subsets.hgdp) %>% select(s, cram_paths = `project_meta.cram_path`) 
+gvcf_paths <- read_delim(paste0(data_path, 'HGDP_gvcf_list_with_names.txt'), delim = '\t', col_names = c('gvcf_paths', 's'))
+
+sample_info <- tsv %>%
+  merge(gvcf_paths, by = 's')
+# write_csv(sample_info, 'hgdp_sample_path_info.csv')
+```
+
+```{r}
+hgdp <- v3_dp20 %>% mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')))  %>% merge(., tsv, by = 's') 
+hgdp <- hgdp %>% select(s, pop, recomputed_contamination, mean_AB_snp_biallelic_af_adjust_10)
+sample_info <- sample_info %>%
+  merge(hgdp, by='s')
+# write_csv(sample_info, '~/PycharmProjects/CHARR/hgdp_sample_path_info.csv')
+```
+
+```{r}
+## V2
+id <- c('0021', '0105', '0341', '0768', '1190', '0714', '1371', '0669', '1385', '0689', '0610', '0690', '0931', '1092', '1406', '0875', '1009', '0845')
+hgdp_id <- paste0('HGDP0', id)
+
+sub <- sample_info %>%
+  filter(s %in% hgdp_id)
+
+write_delim(as.data.frame(hgdp_id), '~/PycharmProjects/CHARR/hgdp_selected_sample_id.txt')
+```
+
+
+```{r}
+id <- c('0281', '0021', '0105', '0118', '0341', '0768', '1096', '1190', '1243', '0714', '1371', '0529', '0669', '1396', '1385', '0689', '0688', '0610', '0726', '0690', '0931', '0944', '1092', '1406', '0905', '0875', '0703', '1009', '1050', '0845')
+hgdp_id <- paste0('HGDP0', id)
+
+sub <- sample_info %>%
+  filter(s %in% hgdp_id)
+
+#write_delim(as.data.frame(hgdp_id), '~/PycharmProjects/CHARR/hgdp_selected_sample_id_ver2.txt')
+```
+
+```{r}
+source('~/ukb_exomes/R/constants.R')
+pop_colors['mid']  <- pop_colors['mde'] 
+pop_names['mid']  <- pop_names['mde']
+pop_names['ami']  <- 'Amish'
+pop_colors['ami']  <- "#FFC0CB" 
+pop_names['afr']  <- "African" 
+```
+
+
+```{r}
+ p <- sub %>%
+  # filter(s %in% c('HGDP00021', 'HGDP00768', 'HGDP00669', 'HGDP00726', 'HGDP00905', 'HGDP00845')) %>%
+  ggplot + 
+  aes(x = pop, 
+      y = recomputed_contamination,
+      # y = mean_AB_snp_biallelic_af_adjust_10,
+      color = pop) + 
+  labs(x = 'Population', y='Freemix Score') +
+  geom_point() + 
+  scale_y_log10() +
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  theme(legend.position = 'None')
+p
+png(paste0(figure_path, 'selected_samples_for_simulation_analysis_freemix.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+```{r}
+ p <- sub %>%
+  # filter(s %in% c('HGDP00021', 'HGDP00768', 'HGDP00669', 'HGDP00726', 'HGDP00905', 'HGDP00845')) %>%
+  ggplot + 
+  aes(x = recomputed_contamination,
+      y = mean_AB_snp_biallelic_af_adjust_10,
+      color = pop) + 
+  labs(x = 'Freemix Score', y='CHARR') +
+  geom_point() + 
+  # scale_x_log10() +
+  # scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  theme(legend.position = 'None')
+p
+png(paste0(figure_path, 'selected_samples_for_simulation_analysis_freemix.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+## simulation analysis
+###Decontaminated samples
+
+### Mixed samples
+```{r}
+mixed_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples.csv'), sep='\t')
+# mixed_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_chr1_chr2_full_sample_ref_AF.csv'), sep='\t')
+```
+
+```{r}
+mixed_long <- mixed_data %>% 
+  select(1:3, estimator=freemix_score, 7:8) %>% 
+  rbind(mixed_data %>% select(1:3, estimator=charr, 7:8)) %>% 
+  mutate(type=factor(rep(c('VBID', 'CHARR'), each=150))) 
+```
+
+
+```{r}
+p <- mixed_data %>% 
+  ggplot + aes(x=freemix_score, 
+               y=charr, 
+               color=pop_original, 
+               pch=factor(contam_rate)) +
+  geom_point(size=2) +
+  # geom_vline(xintercept = 0.005, lty = 2) + 
+  # geom_hline(yintercept = 0.005, lty = 2) + 
+  # scale_x_log10() +
+  # scale_y_log10() +
+  labs(x='Freemix Score', y='CHARR', color='Population (original)', pch='True contam rate') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) 
+# +
+#   facet_grid(~contam_rate)
+p
+# png(paste0(figure_path, 'hgdp_mixed_samples_freemix_score_vs_charr_color_by_original_chr1_chr2_test.png'), height = 4, width = 6, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+```{r}
+p <- mixed_data %>% 
+  ggplot + aes(x=freemix_score, 
+               y=charr, 
+               color=pop_contaminant, 
+               pch=factor(contam_rate)) +
+  geom_point(size=2) +
+  # scale_x_log10() +
+  # scale_y_log10() +
+  labs(x='Freemix Score', y='CHARR (no_ref_AF)', color='Population (contaminant)', pch='True contam rate') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) 
+# +
+#   facet_grid(~contam_rate)
+p
+# png(paste0(figure_path, 'hgdp_mixed_samples_freemix_score_vs_charr_color_by_contaminant_sample_ref_AF_charr_highlight.png'), height = 4, width = 7.5, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+```{r}
+
+  ggplot(data=mixed_long) + 
+  geom_point(aes(x=type, y=estimator, color=pop_original, pch=type,yintercept = contam_rate) ) +
+  # scale_x_log10() +
+  # scale_y_log10() +
+  labs(x='True contamination rate', y='Estimators', color='Population (original)') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  facet_grid(~contam_rate) + 
+  geom_hline(mixed_long, aes(y_intercept=contam_rate)) 
+p
+# png(paste0(figure_path, 'hgdp_27samples_freemix_score_vs_charr_decontaminated_vs_original.png'), height = 4, width = 7.5, units = 'in', res = 300)
+# print(p)
+# dev.off()  
+```
+```{r}
+p <- ggplot(mixed_long, aes(x = type, y = estimator, color=pop_contaminant,group=interaction(pop_contaminant, type))) + geom_boxplot() +
+  labs(x=NULL, y='Contamination level', color='Population (contaminant)') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + facet_grid(~contam_rate) + 
+    geom_hline(data = mixed_long, aes(yintercept = contam_rate), lty=2)
+p
+# png(paste0(figure_path, 'hgdp_mixed_freemix_score_vs_charr_color_by_contaminant_sample_ref_AF_charr.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+```{r}
+p <- ggplot(mixed_long, aes(x = type, y = estimator, color=pop_original,group=interaction(pop_original, type))) + geom_boxplot() +
+  labs(x=NULL, y='Contamination level', color='Population (original)') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + facet_grid(~contam_rate) + 
+    geom_hline(data = mixed_long, aes(yintercept = contam_rate), lty=2)
+p
+# png(paste0(figure_path, 'hgdp_n_way_mixed_freemix_score_vs_charr_color_by_original_chr1_chr2_test_sample_ref_AF.png'), height = 4, width = 6, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+## hom var summary
+```{r}
+hom_var <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_hom_var_summary.csv'), sep='\t')
+# hom_var <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples_hom_var_summary.csv'), sep='\t')
+mixed_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples.csv'), sep='\t')
+```
+
+```{r}
+hom_var <- hom_var %>% 
+  merge(mixed_data, by= c("original",  "contam_rate"))
+  # merge(mixed_data, by= c("original", "contaminant", "contam_rate"))
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var, x=pop_original, color=pop_original, group=pop_original) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars', color = 'Population (original)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_original_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var, x=pop_contaminant, color=pop_contaminant, group=pop_contaminant) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars', color = 'Population (contaminant)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_contaminant_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var_AD_over_0, x=pop_original, color=pop_original, group=pop_original) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars with ref_AD>0', color = 'Population (original)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_ad_over_0_original_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var_AD_over_0, x=pop_contaminant, color=pop_contaminant, group=pop_contaminant) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars with ref_AD>0', color = 'Population (contaminant)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_ad_over_0_contaminant_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var_AD_0, x=pop_original, color=pop_original, group=pop_original) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars with ref_AD==0', color = 'Population (original)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_ad_0_original_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_hom_var_AD_0, x=pop_contaminant, color=pop_contaminant, group=pop_contaminant) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Hom Vars with ref_AD==0', color = 'Population (contaminant)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_hom_var_ad_0_contaminant_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_het_var, x=pop_original, color=pop_original, group=pop_original) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Het Vars', color = 'Population (original)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_het_var_original_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_het_var, x=pop_contaminant, color=pop_contaminant, group=pop_contaminant) +
+  geom_boxplot() +
+  labs(x = NULL, y='Number of Het Vars', color = 'Population (contaminant)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_n_het_var_contaminant_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_het_var/n_hom_var, x=pop_original, color=pop_original, group=pop_original) +
+  geom_boxplot() +
+  labs(x = NULL, y='Het/Hom Ratio', color = 'Population (original)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+# png(paste0(figure_path, 'hgdp_mixed_het_hom_ratio_original_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+p <- hom_var %>%
+  ggplot + aes(y=n_het_var/n_hom_var, x=pop_contaminant, color=pop_contaminant, group=pop_contaminant) +
+  geom_boxplot() +
+  labs(x = NULL, y='Het/Hom Ratio', color = 'Population (contaminant)') + 
+  scale_x_discrete(labels= pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')])+ 
+  facet_grid(~contam_rate) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x = element_blank())
+p
+png(paste0(figure_path, 'hgdp_n_way_mixed_het_hom_ratio_contaminant_pop.png'), height = 4, width = 9, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+# n-way mixing 
+```{r}
+mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_local_af_25_50_test.csv'), sep='\t')
+# mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_115_full_sample_AF.csv'), sep='\t')
+```
+
+```{r}
+mixed_long <- mixed_data_n %>% 
+  select(1:2, estimator=freemix_score, 6) %>% 
+  rbind(mixed_data_n %>% select(1:2, estimator=charr_local, 6)) %>% 
+  mutate(type=factor(rep(c('VBID', 'CHARR'), each=150))) 
+```
+
+```{r}
+p <- ggplot(mixed_long, aes(x = type, y = estimator, color=pop_original,group=interaction(pop_original, type))) + geom_boxplot() +
+  labs(x=NULL, y='Contamination level', color='Population (original)') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) + facet_grid(~contam_rate) + 
+    geom_hline(data = mixed_long, aes(yintercept = contam_rate), lty=2)
+p
+# png(paste0(figure_path, 'hgdp_n_way_mixed_freemix_score_vs_charr_color_by_original_115_gnomad_ref_AF.png'), height = 4, width = 7.5, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+
+# 2-way vs. n_way figure
+```{r}
+#mixed_data_2 <- read.csv(paste0(data_path, 'charr_simulation_hgdp_mixed_samples_full_sample_ref_AF_charr.csv'), sep='\t')
+mixed_data_2 <- read.csv(paste0(data_path, 'charr_simulation_hgdp_mixed_samples_full.csv'), sep='\t')
+mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_115_full_gnomad_AF.csv'), sep='\t')
+# mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_115_full_sample_AF.csv'), sep='\t')
+```
+
+```{r}
+mixed_full <- mixed_data_2 %>%
+  select(-c('contaminant', 'pop_contaminant')) %>%
+  rbind(mixed_data_n) %>%
+  mutate(result_type = c(rep('2_way', 150), rep('n_way', 150)))
+```
+
+
+```{r}
+p <- mixed_full %>% 
+  # filter(contam_rate == 0.005) %>%
+  ggplot + aes(x=freemix_score, 
+               y=charr, 
+               color=pop_original, 
+               pch=result_type) +
+  geom_point(size=2) +
+  # geom_vline(xintercept = 0.005, lty = 2) + 
+  # geom_hline(yintercept = 0.005, lty = 2) + 
+  # scale_x_log10() +
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+  scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+  labs(x='Freemix Score', y='CHARR', color='Population (original)', pch='Mixing type') + 
+  scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth'), labels = pop_names[c('afr', 'amr', 'eas', 'mid', 'nfe', 'sas','oth')]) +
+  facet_wrap(~contam_rate, ncol=3, scales = 'free') + 
+  # guides(colour = guide_legend(order = 2,nrow=2,byrow=TRUE), 
+  #       shape = guide_legend(order = 1))+
+  geom_hline(data = mixed_full, aes(yintercept = contam_rate), lty=2) +
+  geom_vline(data = mixed_full, aes(xintercept = contam_rate), lty=2) + 
+  theme(legend.position = c(.8,.2), legend.margin = margin(0,0,0,0, unit="cm"), legend.background = element_blank()) 
+p
+png(paste0(figure_path, 'hgdp_n_way_vs_2_way_mixed_both_gnomAD_AF.png'), height = 5, width = 7.5, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+```{r}
+mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_decontam_gt_test.csv'), sep='\t')
+mixed_long <- mixed_data_n %>% 
+  select(1:2, estimator=freemix_score, 6) %>% 
+  rbind(mixed_data_n %>% select(1:2, estimator=charr, 6)) %>% 
+  mutate(type=factor(rep(c('VBID', 'CHARR'), each=150))) 
+p <- mixed_long %>% 
+  ggplot + aes(x=contam_rate, 
+               y=estimator, 
+               color=type,
+               group=interaction(type,contam_rate)) +
+    geom_boxplot()+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+    # scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+    labs(x='True Contamination Rate', y='Contamination estimator', color='Type') 
+p
+  # if(save){
+  #   png(paste0(figure_path, name, '_hgdp_n_way_mixed_150_samples_', type,'_AF.png'), height = height, width = width, units = 'in', res = 300)
+  #   print(p)
+  #   dev.off()
+  # }
+
+```
+
+```{r}
+mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_local_af_an_test.csv'), sep='\t')
+mixed_long <- mixed_data_n %>% 
+  select(1:2, estimator=freemix_score, 6) %>% 
+  rbind(mixed_data_n %>% select(1:2, estimator=charr_local, 6)) %>% 
+  mutate(type=factor(rep(c('VBID', 'CHARR'), each=150))) 
+p <- mixed_long %>% 
+  ggplot + aes(x=contam_rate, 
+               y=estimator, 
+               color=type,
+               group=interaction(type,contam_rate)) +
+    geom_boxplot()+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+    # scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+    labs(x='True Contamination Rate', y='Contamination estimator', color='Type') 
+p
+  # if(save){
+  #   png(paste0(figure_path, name, '_hgdp_n_way_mixed_150_samples_', type,'_AF.png'), height = height, width = width, units = 'in', res = 300)
+  #   print(p)
+  #   dev.off()
+  # }
+
+```
+
+
+
+# Number of reads inserted
+```{r}
+# Chr21
+n_contam = c(883856, 1101659, 1048163, 1224481, 1023885, 1117240, 1177941, 1029110, 1148365, 1140903, 1083187, 1021293, 1091187, 1032936, 1212400, 1248162, 1136263, 1038303, 1043485, 1131713, 1146710, 1083657, 1224939, 1046848, 1094273, 1103257, 1098484, 978554, 878228, 987625)
+n_original = c(7979269, 9965604, 9474344, 11074864, 9259726, 10107243, 10661856, 9310205, 10396383, 10323414, 9801879, 9237984, 9868403, 9330673, 10972734, 11267286, 10267208, 9386462, 9435076, 10218384, 10364679, 9808184, 11088924, 9457200, 9888293, 9976008, 9957150, 8839349, 7934054, 8932036)
+n_contam/(n_contam + n_original)
+```
+
+```{r}
+# chr1
+n_contam = c(5192929, 6036943, 6007944, 6636688, 5993748, 6694681, 6617895, 6137325, 6946732, 6537685, 6404404, 5759620, 6388570, 6109487, 7033706, 6686350, 6223686, 5917803, 6153701, 6264573, 6600227, 6335992, 6875825, 5874322, 6318431, 6157924, 6283242, 5809281, 5234479, 5789427)
+n_original = c(46913137, 54512836, 54240712, 59996798, 54178648, 60541852, 59727792, 55472482, 62794048, 59089502, 57910857, 52023886, 57717529, 55159490, 63520254, 60390006, 56233428, 53461512, 55569110, 56595923, 59600907, 57239434, 62138806, 53041144, 57047433, 55608974, 56804132, 52433231, 47252483, 52279345)
+n_contam/(n_contam + n_original)
+```
+
+# n_way - different charr
+```{r}
+mixed_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_multiple_type_charr.csv'), sep='\t')
+```
+
+```{r}
+mixed_full <- mixed_data %>%
+  select(1, 4:5, 7, charr=freemix_score) %>%
+  mutate(AF_type = 'Freemix Score') %>%
+  distinct() %>%
+  rbind(mixed_data %>% select(1, 4:5,7, 2,3))
+```
+
+
+```{r}
+p <- mixed_full %>% 
+  ggplot + aes(y=charr, 
+               x=contam_rate, 
+               color=AF_type,
+               group=AF_type) +
+  geom_boxplot() +
+  # geom_vline(xintercept = 0.005, lty = 2) + 
+  # geom_hline(yintercept = 0.005, lty = 2) + 
+  # scale_x_log10() +
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+  scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+  labs(x='True Contamination rate', y='CHARR', color = 'Type') + 
+  # scale_color_brewer(palette='Dark2') +
+  # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+  facet_wrap(~contam_rate, ncol=3, scales = 'free') +
+  # # guides(colour = guide_legend(order = 2,nrow=2,byrow=TRUE), 
+  # # #       shape = guide_legend(order = 1))+
+  geom_hline(data = mixed_data, aes(yintercept = contam_rate), lty=2) 
+  # geom_vline(data = mixed_data, aes(xintercept = contam_rate), lty=2) +
+  # theme(legend.position = c(.8,.2), legend.margin = margin(0,0,0,0, unit="cm"), legend.background = element_blank()) 
+p
+png(paste0(figure_path, 'hgdp_n_way_mixed_many_types_charr.png'), height = 5, width = 7.5, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+```{r}
+p <- mixed_data %>% 
+  ggplot + aes(x=freemix_score, 
+               y=charr, 
+               color=AF_type) +
+  geom_point(size=2) +
+  # geom_vline(xintercept = 0.005, lty = 2) + 
+  # geom_hline(yintercept = 0.005, lty = 2) + 
+  # scale_x_log10() +
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+  scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+  labs(x='Freemix Score', y='CHARR', color='True contamination rate', pch='AF type') + 
+  scale_color_brewer(palette = 'Dark2') +
+  # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+  facet_wrap(~contam_rate, ncol=3, scales = 'free') + 
+  # # guides(colour = guide_legend(order = 2,nrow=2,byrow=TRUE), 
+  # #       shape = guide_legend(order = 1))+
+  geom_hline(data = mixed_data, aes(yintercept = contam_rate), lty=2) +
+  geom_vline(data = mixed_data, aes(xintercept = contam_rate), lty=2) +
+  theme(legend.position = c(.8,.2), legend.margin = margin(0,0,0,0, unit="cm"), legend.background = element_blank()) 
+p
+# png(paste0(figure_path, 'hgdp_n_way_vs_2_way_mixed_both_gnomAD_AF.png'), height = 5, width = 7.5, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+
+```{r}
+v2_outliers <- read_tsv('~/Downloads/gnomad_v2_outlier.tsv') %>%
+  mutate(tag = paste0(if_else(label & outlier, 'Broad_outlier', if_else(!label & outlier, 'Other_outlier', 'None')))) %>%
+  filter(n_het > 10000)
+v2_outliers <- v2_outliers %>% filter(tag == 'None') %>%
+  rbind(v2_outliers %>% filter(tag == 'Broad_outlier')) %>%
+  rbind(v2_outliers %>% filter(tag == 'Other_outlier'))
+```
+```{r}
+view(v2_dp20 %>% 
+       filter(s %in% unlist(v2_outliers %>%filter(outlier) %>%select(s))) %>% 
+       select(s, label, freemix_score = contamination, charr = mean_AB_snp_biallelic_af_adjust_10) %>%
+       mutate(label = if_else(label, 'Broad', 'Other')) %>%
+       arrange(charr))
+```
+
+```{r}
+view(v2_dp20 %>% 
+       filter(s %in% unlist(v2_outliers %>%filter(n_het < 10000) %>%select(s))) %>% 
+       select(s, label, freemix_score = contamination, charr = mean_AB_snp_biallelic_af_adjust_10) %>%
+       mutate(label = if_else(label, 'Broad', 'Other')) %>%
+       merge(v2_outliers %>% select(s, n_het), by = 's') %>%
+       arrange(n_het, charr)) 
+```
+
+
+```{r}
+v2_outliers %>%
+  ggplot + aes(x = tag, y = bases_gq_over_60/bases_dp_over_20, color = tag, fill=tag, group=tag) +
+  geom_boxplot(alpha = 0.5) +
+  # scale_y_log10() +
+  scale_color_manual(values = c('lightgrey', 'red', 'blue'), labels = c('None', 'Other outliers', 'Broad outliers'), breaks =  c('None', 'Other_outlier', 'Broad_outlier'))+
+  scale_fill_manual(values = c('lightgrey', 'red', 'blue'), labels = c('None', 'Other outliers', 'Broad outliers'), breaks =  c('None', 'Other_outlier', 'Broad_outlier'))
+```
+
+```{r}
+v2_outliers %>%
+  ggplot + aes(x = n, color = tag, fill = tag) +
+  geom_histogram(alpha = 0.5) +
+  scale_y_log10() +
+  scale_color_manual(values = c('lightgrey', 'red', 'blue'), labels = c('None', 'Other outliers', 'Broad outliers'), breaks =  c('None', 'Other_outlier', 'Broad_outlier'))+
+  scale_fill_manual(values = c('lightgrey', 'red', 'blue'), labels = c('None', 'Other outliers', 'Broad outliers'), breaks =  c('None', 'Other_outlier', 'Broad_outlier'))
+```
+```{r}
+v2_outliers %>%
+  ggplot + aes(x = bases_dp_over_30/n_non_ref * n_het, color = outlier, fill=outlier) +
+  geom_histogram(alpha = 0.5) +
+  scale_y_log10()
+```
+
+```{r}
+v2_outliers %>%
+  filter(outlier) %>%
+  ggplot + aes(x = n_het, y = bases_gq_over_60, color = outlier, fill=outlier) +
+  geom_point(alpha = 0.5)
+```
+
+```{r}
+p <- v2_outliers %>%
+  mutate(all  = rowSums(v2_outliers %>% select(-c(1, 18, 19, 28)))) %>%
+  ggplot + aes(x = bases_dp_over_20, y = bases_gq_over_20, color = tag) +
+  geom_point(alpha = 0.5) +
+  scale_color_manual(values = c('lightgrey', 'red', 'blue'), labels = c('None', 'Other outliers', 'Broad outliers'), breaks =  c('None', 'Other_outlier', 'Broad_outlier'))
+p
+png(paste0('~/Desktop/v2_outlier_check_dp_gq.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+
+```{r}
+broad_outlier <- v2_outliers %>%
+  filter(tag == 'Broad_outlier') %>%
+  mutate(id = str_replace(s, 'C774_', '')) %>%
+  select(s, id)
+broad_outlier_info <- data.frame(final_cram_path = c(
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_1006/v1/KARE2011_1006.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_1079/v1/KARE2011_1079.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_296/v1/KARE2011_296.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_321/v1/KARE2011_321.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_343/v1/KARE2011_343.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_411/v1/KARE2011_411.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_415/v1/KARE2011_415.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_56/v1/KARE2011_56.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_666/v1/KARE2011_666.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_685/v1/KARE2011_685.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_691/v1/KARE2011_691.cram',
+  'gs://fc-d711c709-58c4-4e20-a326-b46b192eca62/NIDDK_Broad_T2DGENES_Florez_Lee_KARE_WES/C774/Exome/KARE2011_872/v1/KARE2011_872.cram'
+)) %>%
+  mutate(id = str_replace(str_split(final_cram_path, '/') %>% map_chr(., -1), '.cram', ''),
+         final_crai_path = paste0(final_cram_path, '.crai')) %>%
+  merge(broad_outlier, by='id')
+write.table(broad_outlier_info, '~/Desktop/v2_broad_charr_outlier_info.txt', row.names = FALSE, col.names = TRUE, sep = '\t', quote = FALSE)
+```
+
+
+```{r}
+new_vbid <-c(C774_KARE2011_1006=0.00454167,C774_KARE2011_1079=0.00257119,C774_KARE2011_296=0.00395937,C774_KARE2011_321=0.00499548,C774_KARE2011_343=0.00461173,C774_KARE2011_411=0.00423813,C774_KARE2011_415=0.00501295,C774_KARE2011_56=0.00330716,C774_KARE2011_666=0.00228392,C774_KARE2011_685=0.00400685,C774_KARE2011_691=0.00345059,C774_KARE2011_872=0.00304505)
+new_vbid <- data_frame(
+  s = names(new_vbid),
+  new_freemix_score = new_vbid
+)
+broad_outlier <- v2_dp20 %>% 
+  merge(new_vbid, by = 's', all.x = T)
+```
+
+
+```{r}
+v2_main <- broad_outlier %>% 
+  filter(mean_AB_snp_biallelic_af_adjust_10 < 0.3) %>%
+  # filter((releasable) & (mean_AB_snp_biallelic_af_adjust_10 < 0.06)) %>% 
+  # filter((releasable)) %>% 
+  select(mean_AB_snp_biallelic_af_adjust_10, n_snp_biallelic_af_10, contamination, label, new_freemix_score) %>%
+  mutate(label = if_else(label, 'Broad', 'Other'),
+         data_type = '(B): gnomAD v2 (WES)') %>%
+  mutate(label = if_else(is.na(new_freemix_score), label, 'Outlier'))
+v2_main <- rbind(v2_main %>% filter(label=='Broad'), v2_main %>% filter(label == 'Other'), v2_main %>% filter(label == 'Outlier'))
+figure <- v2_main %>%
+  mutate(contamination = if_else(is.na(new_freemix_score), contamination, new_freemix_score)) %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = paste0('CHARR'), color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'lightgray' ,'orange')) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold'))
+figure
+```
+```{r}
+read_info <- read_tsv('~/Downloads/hgdp_decontaminated_full_n_way_150_samples_read_stats_new.tsv')
+# dp_info <- read_tsv('~/Downloads/hgdp_decontaminated_full_n_way_150_samples_dp_check.tsv')
+```
+```{r}
+dp_info %>%
+  ggplot + aes(x = n_dp_20) +
+  geom_histogram(bins=50, color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Number of hom var DP >=20')
+```
+
+```{r}
+read_info %>%
+  filter(endsWith(s, '_10.0')) %>%
+  ggplot + aes(x = n_hom_var_75) +
+  geom_histogram(bins=50, color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Number of hom var (AC=15)')
+```
+
+```{r}
+read_info %>%
+  # filter(endsWith(s, '_10.0')) %>%
+  ggplot + aes(x = n_hom_var_50) +
+  geom_histogram(bins=50, color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Number of hom var (AC=30)')
+```
+
+```{r}
+read_info %>%
+  filter(endsWith(s, '_10.0')) %>%
+  ggplot + aes(x = mean_AB_75) +
+  geom_histogram(bins=50, color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Mean AB: LAD[0]/ (LAD[0] + LAD[1]) - AC = 15')
+```
+
+```{r}
+read_info %>%
+  filter(endsWith(s, '_10.0')) %>%
+  ggplot + aes(x = mean_AB_50) +
+  geom_histogram(bins=50, color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Mean AB: LAD[0]/ (LAD[0] + LAD[1]) - AC = 30')
+```
+
+```{r}
+read_info %>%
+  ggplot + aes(x = total_reads, y=total_ref_reads) +
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'Total Reads: LAD[0] + LAD[1]', y='Total Reference Reads: LAD[0]') + 
+  geom_abline(slope=1, intercept=0, lty=2)
+```
+
+
+```{r}
+sample_read_info <- read_tsv('~/Downloads/hgdp_HGDP00726_10.0_read_info.tsv')
+```
+
+```{r}
+sample_read_info %>%
+  ggplot + aes(x = AD0, y = AD_total, group = AD0) +
+  geom_boxplot(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  geom_abline(slope = 12, intercept = 0, lty = 2) +
+  geom_abline(slope = 10, intercept = 0, lty=2) +
+  labs(title = 'HGDP00726_10.0', x = 'Reference Reads: LAD[0] ', y='Total Reads: LAD[0] + LAD[1]') + themes
+```
+
+```{r}
+sample_read_info %>%
+  mutate(total_AD_interval = as.numeric(cut(AD_total,seq(0, 100, 5)))) %>%
+  g
+  ggplot + aes(x = AD_total, y = AD0, group=AD_total) +
+  geom_boxplot(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  # geom_abline(slope = 0.08, intercept = 0, lty = 2) +
+  # geom_abline(slope = 0.1, intercept = 0, lty=2) +
+  labs(title = 'HGDP00726_10.0', y = 'Reference Reads: LAD[0] ', x='Total Reads: LAD[0] + LAD[1]') + themes
+```
+
+```{r}
+sample_read_info %>%
+  filter(ref_AF == 0.5) %>%
+  group_by(AD_total) %>%
+  dplyr::summarize(mean_AD0 = mean(AD0)) %>%
+  ggplot + aes(x = AD_total, y = mean_AD0) +
+  # geom_boxplot(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) +
+  geom_abline(slope = 0.05, intercept = 0, lty = 2) +
+  geom_abline(slope = 0.04, intercept = 0, lty=2) +
+  labs(title = 'HGDP00726_10.0', y = 'Mean Reference Reads: LAD[0] ', x='Total Reads: LAD[0] + LAD[1]') + themes
+```
+
+
+```{r}
+AF_group_info <- read_tsv('~/Downloads/hgdp_n_way_group_by_AF.tsv') %>%
+  mutate(contam_rate = as.numeric(strsplit(s, '_') %>% map_chr(., 2) ))
+```
+```{r}
+AF_group_info %>%
+  filter(!is.nan(ref_AF)) %>%
+  filter(endsWith(s, '_10.0')) %>%
+  group_by(ref_AF) %>%
+  dplyr::summarize(mean_n_var = mean(n_vars_defined),
+                   mean_mean_AB = mean(mean_AB)) %>%
+  ggplot + aes(x = ref_AF, y = mean_n_var) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  labs(x = 'reference AF', y = 'Mean number of high-quality hom var defined') +
+  scale_y_log10()
+```
+```{r}
+AF_group_info %>%
+  mutate(charr_est = mean_AB/ref_AF) %>%
+  filter(!is.nan(ref_AF)) %>%
+  filter(endsWith(s, '_10.0')) %>%
+  group_by(ref_AF) %>%
+  dplyr::summarize(mean_n_var = mean(n_vars_defined, na.rm=T),
+                   mean_mean_AB = mean(mean_AB, na.rm=T),
+                   mean_est_charr = mean(charr_est, na.rm=T)) %>%
+  ggplot + aes(x = ref_AF, y = mean_mean_AB) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  labs(x = 'reference AF', y = 'Mean of Mean_AB') 
+```
+```{r}
+p<- sum %>%
+  ggplot + aes(x = ref_AF, y = mean_n_var) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  # geom_hline(data =sum, aes(yintercept = contam_rate/100), lty=2) +
+  # xlim(0, 0.5) +
+  labs(x = 'reference AF', y = 'Mean number of qualified variants') +
+  # scale_y_continuous(label=percent, limits = c(0, 0.2)) +
+  scale_y_log10() + 
+  facet_grid(~contam_rate)
+p
+png(paste0('~/Desktop/ref_AF_mean_n_var_per_contam_rate.png'), height = 4, width = 10, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+```{r}
+sum <- AF_group_info %>%
+  mutate(charr_est = mean_AB/ref_AF) %>%
+  filter(!is.nan(ref_AF)) %>%
+  # filter(endsWith(s, '_10.0')) %>%
+  group_by(ref_AF, contam_rate) %>%
+  dplyr::summarize(mean_n_var = mean(n_vars_defined, na.rm=T),
+                   mean_mean_AB = mean(mean_AB, na.rm=T),
+                   mean_est_charr = mean(charr_est, na.rm=T)) 
+p<- sum %>%
+  ggplot + aes(x = ref_AF, y = mean_est_charr) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  geom_hline(data =sum, aes(yintercept = contam_rate/100), lty=2) +
+  xlim(0, 0.5) +
+  labs(x = 'reference AF', y = 'Mean(Mean_AB/ref_AF)') +
+  scale_y_continuous(label=percent, limits = c(0, 0.2)) +
+  facet_grid(~contam_rate)
+p
+png(paste0('~/Desktop/ref_AF_mean_charr_per_contam_rate.png'), height = 4, width = 10, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+```{r}
+AF_group_info %>%
+  filter(!is.nan(ref_AF)) %>%
+  filter(endsWith(s, '_10.0')) %>%
+  group_by(ref_AF) %>%
+  dplyr::summarize(n_samples_hom_var_0 = sum(n_vars_defined == 0))  %>%
+  ggplot + aes(x = ref_AF, y = n_samples_hom_var_0) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) +
+  labs(x = 'reference AF', y = 'Number of samples with number of hom var == 0 @ this ref_AF')  
+  # scale_y_log10()
+```
+
+```{r}
+many_sample_read_info <- read_tsv('~/Downloads/hgdp_samples_4_45_read_info.tsv') %>%
+  mutate(contam_rate = as.numeric(strsplit(s, '_') %>% map_chr(., 2) ))
+```
+```{r}
+many_sample_read_info %>%
+  filter(ref_AF == 0.5) %>%
+  filter(endsWith(s, '_10.0')) %>%
+  group_by(AD_total) %>%
+  dplyr::summarize(mean_AD0 = mean(AD0)) %>%
+  ggplot + aes(x = AD_total, y = mean_AD0) +
+  # geom_boxplot(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) +
+  geom_abline(slope = 0.05, intercept = 0, lty = 2) +
+  geom_abline(slope = 0.04, intercept = 0, lty=2) +
+  labs(y = 'Mean Reference Reads: LAD[0] ', x='Total Reads: LAD[0] + LAD[1]') + themes
+```
+
+```{r}
+sample_read_info %>%
+  filter(ref_AF == 0.5) %>%
+  filter(endsWith(s, '_10.0')) %>%
+  # group_by(AD_total) %>%
+  # dplyr::summarize(mean_AD0 = mean(AD0)) %>%
+  ggplot + aes(x = AD_total, y = AD0, group = AD_total) +
+  geom_boxplot(color = '#59788E', fill = '#59788E', alpha=0.5) + 
+  # geom_point(color = '#59788E', fill = '#59788E', alpha=0.5) +
+  geom_abline(slope = 0.05, intercept = 0, lty = 2) +
+  geom_abline(slope = 0.04, intercept = 0, lty=2) +
+  labs( y = 'Reference Reads: LAD[0] ', x='Total Reads: LAD[0] + LAD[1]') + themes
+```
+
+# Callrate filter analysis
+## N-way
+```{r}
+callrate_filtered_charr <- mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr.csv'), sep='\t')%>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) 
+```
+
+```{r}
+callrate_filtered_full <- callrate_filtered_charr %>%
+  select(1, 4:5, 7, charr=freemix_score) %>%
+  mutate(AF_type = 'Freemix Score') %>%
+  distinct() %>%
+  rbind(callrate_filtered_charr %>% select(1, 4:5,7, 2,3)) %>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), T, F),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) %>% 
+  mutate(contam_rate_percent = paste0(contam_rate*100, '%'))
+```
+
+## 2-way
+```{r}
+callrate_filtered_charr <- mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples_callrate_filtered_charr.csv'), sep='\t')%>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) 
+```
+
+```{r}
+callrate_filtered_full <- callrate_filtered_charr %>%
+  select(1, 4:6, charr=freemix_score) %>%
+  mutate(AF_type = 'Freemix Score') %>%
+  distinct() %>%
+  rbind(callrate_filtered_charr %>% select(1, 4:6, 2,3)) %>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), T, F),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) %>% 
+  mutate(contam_rate_percent = paste0(contam_rate*100, '%'))
+```
+
+```{r}
+contam_rates <- c('0.5%', '1%', '2%', '5%', '10%')
+names(contam_rates) <- c(0.005, 0.01, 0.02, 0.05, 0.1)
+p <- callrate_filtered_full  %>%
+  filter(main_type %in% c('gnomAD AF', 'local AF', 'Freemix Score')) %>%
+  filter(AF_type != 'gnomAD AF (Callrate filtered)') %>%
+  mutate(contam_rate_percent = factor(contam_rate, levels = c(0.005, 0.01, 0.02, 0.05, 0.1),
+                                      labels = c('0.5%', '1%', '2%', '5%', '10%'))) %>%
+  ggplot + aes(y=charr, 
+               x=AF_type, 
+               color=AF_type,
+               fill = AF_type,
+               group=AF_type) +
+  geom_boxplot(alpha = 0.5) +
+  labs(x=NULL, y ='Contamination estimate', alpha = 'Callrate filtered', color = NULL, fill= NULL) + 
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+  # scale_alpha_discrete(range = c(0.35, 0.9)) +
+  # scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+  # scale_alpha_manual(values = c(0.8, 0.01), breaks = c(TRUE, FALSE), guide = FALSE) + 
+  scale_color_brewer(palette='Dark2') +
+  scale_fill_brewer(palette='Dark2') +
+  # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+  facet_wrap(~contam_rate, ncol=3, scales = 'free', labeller = labeller(contam_rate = contam_rates)) +
+  # # guides(colour = guide_legend(order = 2,nrow=2,byrow=TRUE), 
+  # # #       shape = guide_legend(order = 1))+
+  geom_hline(data = callrate_filtered_full, aes(yintercept = contam_rate), lty=2) +
+  themes + 
+  # guides(alpha=guide_legend(override.aes=list(fill=hcl(c(15,195),100,0,alpha=c(0.01,0.8)),
+  #                                             colour=NA))) +
+  # geom_vline(data = mixed_data, aes(xintercept = contam_rate), lty=2) +
+  theme(legend.position = c(.85,.4), 
+        legend.text = element_text(size=10), 
+        legend.margin = margin(0,0,0,0, unit="cm"),
+        legend.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank() ) 
+p
+# png(paste0(figure_path, 'hgdp_n_way_mixed_many_types_charr.png'), height = 5, width = 7.5, units = 'in', res = 300)
+# print(p)
+# dev.off()
+png(paste0('~/Desktop/hgdp_2_way_mixed_callrate_charr_figureS18.png'), height = 3.5, width = 7, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+
+```{r}
+  p <- callrate_filtered_charr %>% 
+    filter(AF_type %in% c('gnomAD AF', 'local AF (Callrate filtered)')) %>%
+    ggplot + aes(x=freemix_score, 
+                 y=charr, 
+                 color=factor(contam_rate, levels=c(0.005, 0.01, 0.02, 0.05, 0.1), labels = c('0.5%', '1.0%', '2.0%', '5.0%', '10.0%'))) +
+    geom_point(size=2 )+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+    scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+    labs(x='Freemix Score', y='CHARR', color='True Contamination Rate') +
+  facet_grid(callrate_filtered ~main_type, ) + 
+  theme_bw() + themes
+p
+# png(paste0('~/Desktop/hgdp_2_way_mixed_callrate_filtered_charr_v2.png'), height = 4, width = 9, units = 'in', res = 300)
+# print(p)
+# dev.off()
+```
+```{r}
+callrate_filtered_sum <- callrate_filtered_full %>% 
+  filter(AF_type %in% c('Freemix Score', 'local AF (Callrate filtered)')) %>%
+  mutate(AF_type = if_else(AF_type == 'local AF (Callrate filtered)', 'CHARR', AF_type)) %>%
+  group_by(AF_type, contam_rate) %>%
+  dplyr::summarize(
+    std = sd(charr),
+    mean = mean(charr)
+  ) %>%
+  mutate(y_max = mean + std,
+         y_min = mean - std)
+p <- callrate_filtered_sum %>%
+  ggplot + 
+  geom_pointrange(aes( x=contam_rate, 
+               y=mean,
+               color=AF_type,
+               fill=AF_type,
+               ymax = y_max,
+               ymin=y_min), size = 0.25)+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    scale_color_manual(breaks=c('CHARR', 'Freemix Score'), labels=c('CHARR', 'Freemix Score'), values = c( '#D95F02', '#1B9E77')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), limit = c(0, 0.11)) +
+    scale_x_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1)) +
+    labs(x='True Contamination Rate', y='Contamination estimate', color=NULL, fill = NULL, alpha = 'Callrate filtered') +
+  themes + 
+  theme(legend.position = c(0.15, 0.85))
+p
+png(paste0('~/Desktop/hgdp_2_way_mixed_callrate_filtered_charr_figure3.png'), height = 3.5, width = 5.5, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+```{r}
+  p <- callrate_filtered_charr %>% 
+    ggplot + aes(x=freemix_score, 
+                 y=charr, 
+                 color=factor(contam_rate, levels=c(0.005, 0.01, 0.02, 0.05, 0.1), labels = c('0.5%', '1.0%', '2.0%', '5.0%', '10.0%'))) +
+    geom_point(size=2 )+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+    scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+    labs(x='Freemix Score', y='CHARR', color='True Contamination Rate') +
+  facet_grid(callrate_filtered ~main_type, )
+p
+png(paste0('~/Desktop/hgdp_n_way_mixed_callrate_filtered_charr_v2.png'), height = 4, width = 9, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+
+### Drafting figure 3
+```{r}
+p <- callrate_filtered_full %>% 
+  ggplot + aes(x=contam_rate, 
+               y=charr, 
+               alpha = callrate_filtered,
+               color=main_type,
+               fill=main_type,
+               group=interaction(AF_type,contam_rate)) +
+    geom_boxplot()+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+    # scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+    scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+    scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
+    labs(x='True Contamination Rate', y='Contamination estimator', color='Type', fill = 'Type', alpha = 'Callrate filtered') +
+    scale_alpha_manual(values = c(0.1, 0.8),guide = FALSE) + 
+    scale_color_brewer(palette='Dark2') +
+    scale_fill_brewer(palette='Dark2') +
+    guides(alpha=guide_legend(override.aes=list(fill=hcl(c(15,195),100,0,alpha=c(0.1,0.8)),
+                                              colour=NA))) 
+p
+png(paste0('~/Desktop/hgdp_2_way_mixed_callrate_filtered_charr_v3.png'), height = 4, width = 9, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+
+```{r}
+callrate_filtered_charr %>% 
+  filter(AF_type == 'local AF (Callrate filtered)') %>%
+  dplyr::summarize(tidy(cor.test(charr, freemix_score)))
+p <- callrate_filtered_charr %>% 
+  filter(AF_type == 'local AF (Callrate filtered)') %>%
+  ggplot + aes(x=freemix_score, 
+               y=charr, 
+               color=factor(contam_rate, levels=c(0.005, 0.01, 0.02, 0.05, 0.1), labels = c('0.5%', '1.0%', '2.0%', '5.0%', '10.0%'))) +
+  geom_point(size=2 )+
+  geom_abline(slope = 1, intercept = 0, lty =2) + 
+  theme_minimal()+ 
+  scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.11) ) +
+  scale_x_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.11) ) +
+  labs(x='Freemix Score', y='CHARR', color='True Contamination Rate') +
+  theme(axis.line = element_line(colour = "black"),
+        axis.text.x = element_text(angle=30),
+        panel.grid.major = element_line(linetype="solid",size=0.5)) 
+p
+png(paste0('~/Desktop/hgdp_n_way_mixed_callrate_filtered_charr_figure3.png'), height = 4, width = 7, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+```{r}
+  p <- callrate_filtered_charr %>% 
+    filter(main_type %in% c('gnomAD AF', 'local AF')) %>%
+    # mutate(AF_type = if_else(AF_type == 'gnomAD AF', '(A) gnomAD AF', if_else(AF_type == 'local AF', '(B) local AF', '(C) local AF (Callrate filtered)'))) %>%
+    ggplot + aes(x=freemix_score, 
+                 y=charr, 
+                 color=factor(contam_rate, levels=c(0.005, 0.01, 0.02, 0.05, 0.1), labels = c('0.5%', '1.0%', '2.0%', '5.0%', '10.0%'))) +
+    geom_point(size=2 )+
+    geom_abline(slope = 1, intercept = 0, lty =2) + 
+  theme_classic()+ 
+    scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.13) ) +
+  scale_x_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.13) ) +
+  labs(x='Freemix Score', y='CHARR', color='True Contamination Rate') + themes +
+  theme(axis.line = element_line(colour = "black"),
+        axis.text.x = element_text(angle=90, size = 10),
+        axis.text.y = element_text(size = 10),
+        strip.text = element_text(size=12),
+        panel.grid.major = element_line(linetype="solid",size=0.3),
+        legend.position = 'top',
+        legend.text = element_text(size = 12)) +
+  facet_grid(callrate_filtered ~ main_type) 
+p
+png(paste0('~/Desktop/hgdp_2_way_mixed_callrate_filtered_charr_figureS17.png'), height = 6, width = 8, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+```{r}
+callrate_filtered_charr %>% 
+  group_by(AF_type) %>%
+  dplyr::summarize(tidy(cor.test(charr, freemix_score)))
+```
+
+```{r}
+het_hom <- read_tsv('~/Downloads/hgdp_2_way_simulation_het_in_contaminant_hom_in_original_check.tsv')
+```
+
+```{r}
+het_hom %>%
+  ggplot + aes(x = LAD0/DP) +geom_histogram(bins=1000)
+```
+
+
+

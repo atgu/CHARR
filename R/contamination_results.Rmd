@@ -1,0 +1,2271 @@
+---
+title: "contamination_figs"
+output: pdf_document
+date: "2022-09-17"
+---
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+# Setup environment
+# source('~/ukb_exomes/R/constants.R')
+packages = c('GGally', 'reshape2', 'data.table', 'scales', 'Matrix', 'ggplot2', 'extrafont', 'gridExtra', 'grDevices', 'grid',
+              'RCurl', 'trelliscopejs', 'tidyverse', 'devtools', 'broom', 'plotly', 'slackr', 'magrittr', 'gapminder', 'readr', 
+              'purrr', 'skimr', 'gganimate', 'gghighlight', 'plotROC', 'naniar', 'BiocManager', 'cowplot', 'corrplot', 'corrr', 'ggridges', 'RColorBrewer', 
+              'ggpubr', 'meta', 'tidygraph', 'pbapply', 'RMySQL', 'egg', 'ggwordcloud', 'patchwork', 'ggthemes', 'STRINGdb', 'ggrepel', 'LowMACA', 'dplyr')
+
+for(p in packages){
+  if(!require(p, character.only = T)){
+    install.packages(p)
+  }
+}
+
+themes = theme(plot.title = element_text(hjust = 0.5, color = 'Black', size = 10, face = 'bold'),
+               axis.text = element_text(color = 'Black', size = 8), 
+               axis.title = element_text(color = 'Black', size = 10, face = 'bold'), 
+               legend.title = element_text(color = 'Black', size = 10, face = 'bold'), 
+               legend.text = element_text(color = 'Black', size = 10), 
+               legend.position = 'top', legend.box = 'vertical', 
+               strip.text = element_text(color = 'Black', size = 10), 
+               strip.background = element_rect( color = "black", size=0.5, linetype="solid") )
+library(R.utils)
+figure_path <- '~/Dropbox (Partners HealthCare)/contamination/figures/'
+data_path <- '~/Dropbox (Partners HealthCare)/contamination/data/'
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+# functions
+format_ref_af <- function(data){
+  data <- data %>%
+    mutate(ref_AF = if_else(ref_AF=='None', ref_AF, paste0('ref-AF: (', ref_AF, '%, ',  100-as.numeric(ref_AF),  '%)'))) %>%
+    mutate(ref_AF = factor(ref_AF, levels = c( 'None', 'ref-AF: (0%, 100%)', 'ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)')))
+  return(data)
+}
+convert_to_long_format <- function(data, version){
+  data_long <- data %>%
+    select(-(8:13)) %>%
+    pivot_longer(., 2:7) %>%
+    mutate(ref_AF = str_split(name, '_') %>% map_chr(., 7)) %>%
+    format_ref_af(.)
+  if(version == 'v3'){
+    data_long <- data_long %>%
+       mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')),
+              contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination),) 
+  }else(
+    data_long <- data_long %>%
+      mutate(label = if_else(label, 'Broad', 'Other'))
+  )
+  return(data_long)
+}
+
+get_n_hom_var_table <- function(data){
+  n_var <- data %>%
+    select(8:13)%>%
+    pivot_longer(., 1:6) %>%
+    mutate(ref_AF = str_split(name, '_') %>% map_chr(., 5)) %>%
+    format_ref_af(.) %>%
+    group_by(ref_AF) %>%
+    dplyr::summarize(mean_n_var = mean(value))
+  return(n_var)
+}
+
+get_age_bins <- function(age){
+  bins = case_when(
+    age <= 10  ~ '0-10', 
+    age <= 20  ~ '10-20', 
+    age <= 30  ~ '20-30', 
+    age <= 40  ~ '30-40', 
+    age <= 50  ~ '40-50', 
+    age <= 60  ~ '50-60', 
+    age <= 70  ~ '60-70', 
+    age <= 80  ~ '70-80', 
+    age > 80  ~ '> 80', 
+  )
+  return(bins)
+}
+age_bins <- c('0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '> 80')
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+dp_names <- c('no' = 'No DP filters', '10' = '10 < DP < 100', '20' = '20 < DP < 100', '_all'='')
+# Full figure function
+get_figure_charr_freemix_by_ref_AF <- function(data, version, var_type, DP, save=TRUE){
+  long_data <- convert_to_long_format(data, version)
+  if(version == 'v3'){
+    var_cnt_data <- data %>% 
+      filter(label!='Other') %>% 
+      get_n_hom_var_table()
+    data <- rbind(
+      long_data %>% filter(label == 'Broad (gnomAD)'),
+      # long_data %>% filter(label ==  'Other'),
+      long_data %>% filter(label ==  'Sanger (HGDP)')) %>%
+      filter(!release)
+    colors <- c('#045494', 'gray')
+    var_lab <- 0.05
+    annt_x <- 0.095
+    annt_y <- 0.08
+
+  }else{
+    var_cnt_data <- data %>% get_n_hom_var_table()
+    data <- rbind(
+      long_data %>% filter(label == 'Broad'),
+      long_data %>% filter(label ==  'Other')) %>%
+      filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06))
+    colors <- c('#045494', 'gray')
+    var_lab <- 0.025
+    annt_x <- 0.045
+    annt_y <- 0.035
+  }
+  figure <- data %>%
+    ggplot + aes(x = contamination, y = value, color = label) +
+    labs(x = 'Freemix Score', y = paste0('CHARR (',dp_names[DP], ')'), color = 'Sequencing site') +
+    geom_point(alpha=0.8, size = 1) + 
+    geom_abline(slope = 1, intercept = 0, lty=2) +
+    scale_color_manual(values = colors ) +
+    themes +  theme_classic() + 
+    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          axis.text = element_text(family = 'Arial', size = 12),
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    facet_wrap(.~ref_AF, scale = 'free') +
+    geom_label(data = var_cnt_data, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = var_lab, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
+    annotate(geom='text', x=annt_x, y=annt_y,label='y=x', family = 'Arial', size=6)
+    
+  if(save){
+    png(paste0(figure_path, 'gnomad_', version,'_contam_dp', DP, '_', var_type,'_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+    print(figure)
+    dev.off()
+  }
+  return(figure)
+}
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+# correlation figure function
+get_corr_df <- function(long_data){
+  data <- long_data %>%
+    filter(!release & !is.na(label)) %>%
+    group_by(label, ref_AF) %>% 
+    summarize(tidy(cor.test(contamination, value)))
+  return(data)
+}
+
+get_figure_corr_by_ref_AF <- function(data, version, var_type, DP, save=TRUE){
+  if(version == 'v3'){
+    data <- data %>%
+      filter(label != 'Other')
+  }else{
+    # data <- rbind(
+    #   long_data %>% filter(label == 'Broad'),
+    #   long_data %>% filter(label ==  'Other')) %>%
+    #   filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06))
+    # colors <- c('#045494', 'gray')
+    # var_lab <- 0.025
+    # annt_x <- 0.045
+    # annt_y <- 0.035
+  }
+
+  figure <- data %>%
+    filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+    filter(label != 'Other') %>%
+    mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+    ggplot + 
+    labs(title = paste0('Freemix score vs. CHARR ', dp_names[DP]), x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+    geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+    geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+    scale_color_manual(values = c('#045494', 'gray') ) +
+    themes +  theme_classic() + 
+    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+          axis.text = element_text(family = 'Arial', size = 12),
+          axis.text.x = element_text(family = 'Arial', size = 10),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          legend.position = 'top',
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    facet_wrap(~dp_filter)+
+    annotate(geom='text', x=Inf, y=-Inf,label=expression(p.values<10^-100), family = 'Arial', size=4, hjust = 1, vjust=-0.8)
+    
+  if(save){
+    png(paste0(figure_path, 'gnomad_', version, '_contam_dp', DP, '_', var_type, '_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+    print(figure)
+    dev.off()
+  }
+  return(figure)
+}
+```
+
+# Load data
+
+## gnomAD v3
+
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+v3_dp10 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) 
+v3_no_dp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+v3_dp20_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+v3_dp20_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+```
+
+## gnomAD v2
+
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_dp20 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+v2_dp10 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_100.tsv')) 
+v2_no_dp <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+```
+
+# Main figures for presentation
+
+## WGS gnomAD v3: 20 \< DP \< 100, 10% \< ref-AF \< 90%
+
+### Data summary
+
+```{r}
+v3_dp10_age_gene <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp10_age_gene.tsv')) 
+```
+```{r}
+save <- T
+get_figure_charr_freemix_by_ref_AF(v3_dp10_age_gene, version = 'v3', DP = '10', var_type =  'snp_no_age_genes', save = save)
+```
+```{r}
+v3_dp10_long_age_gene <- convert_to_long_format(v3_dp10_age_gene, 'v3')
+```
+
+
+```{r}
+main_data_v3 <- v3_dp10_age_gene %>%
+    mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')),
+           contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination)) 
+summary(main_data_v3[,1:21])
+```
+
+### Produce figure
+
+```{r}
+mean_n_var_v3 <- mean(main_data_v3$n_snp_biallelic_af_10)
+figure <- rbind(
+  main_data_v3 %>% filter(label ==  'Broad (gnomAD)'),
+  main_data_v3 %>% filter(label ==  'Sanger (HGDP)')
+)%>%
+  filter(!release & contamination < 0.06) %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_20, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='label', x=0.025, y=0.05, label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var_v3))), size = 4, family = 'Arial', fill='white') + 
+  annotate(geom='text', x=0.048, y=0.045, label='y=x', family = 'Arial', size=6) +
+  facet_grid(~ref_AF)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_af20_for_presentation.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+main_data_v3 %>%
+  filter(!release & !is.na(label)) %>%
+  group_by(label) %>% 
+  summarize(cnt = n())
+```
+
+```{r}
+main_data_v3 %>%
+  filter(!release & !is.na(label)) %>%
+  group_by(label) %>% 
+  summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+```
+
+```{r}
+main_data_v3 %>%
+  filter(!release & !is.na(label)) %>%
+ #  group_by(label) %>% 
+  summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+main_data_v3 %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label) %>%
+  do(tidy(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination, data = .)))
+```
+
+```{r}
+main_data_v3 %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label) %>%
+  do(glance(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination, data = .)))
+```
+
+#### without intercept
+
+```{r}
+main_data_v3 %>%
+  filter(!release) %>%
+  group_by(label) %>%
+  do(tidy(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination + 0, data = .)))
+```
+
+```{r}
+main_data_v3 %>%
+  filter(!release) %>%
+  group_by(label) %>%
+  do(glance(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination + 0, data = .)))
+```
+
+## WES gnomAD v2: 20 \< DP \< 100, 10% \< ref-AF \< 90%
+
+### Data summary
+
+```{r}
+main_data_v2 <- v2_dp20 %>%
+      mutate(label = if_else(label, 'Broad', 'Other'))
+summary(main_data_v2)
+```
+
+### Produce figure
+
+```{r}
+mean_n_var_v2 <- mean(main_data_v2$n_snp_biallelic_af_10)
+figure <- rbind(
+  main_data_v2 %>% filter(label ==  'Broad'),
+  main_data_v2 %>% filter(label ==  'Other')
+)%>%
+  filter(releasable) %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  ylim(0, 0.06) +
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='label', x=0.025, y=0.055, label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var_v2))), size = 4, family = 'Arial', fill='white') + 
+  annotate(geom='text', x=0.048, y=0.045, label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_af10_for_presentation.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label) & mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>% 
+  summarize(cnt = n())
+```
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>% 
+  summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+```
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  # group_by(label) %>% 
+  summarize(tidy(cor.test(contamination, mean_AB_snp_biallelic_af_adjust_10)))
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>%
+  do(tidy(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination, data = .)))
+```
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>%
+  do(glance(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination, data = .)))
+```
+
+#### without intercept
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>%
+  do(tidy(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination + 0, data = .)))
+```
+
+```{r}
+main_data_v2 %>%
+  filter(releasable & !is.na(label)& mean_AB_snp_biallelic_af_adjust_10 < 0.06) %>%
+  group_by(label) %>%
+  do(glance(lm(mean_AB_snp_biallelic_af_adjust_10 ~ contamination + 0, data = .)))
+```
+
+# Supplement figures
+
+## WGS gnomAD v3
+
+#### Produce figure
+
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v3_dp20_long <- v3_dp20_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins))
+figure <- v3_dp20_long %>%
+  filter(!release & !is.na(age)) %>%
+  filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
+  ggplot + aes(x = age_bin, y = value) +
+  labs(x = 'Age', y = 'CHARR (20 < DP < 100)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  # scale_color_brewer(palette = 'PuBu') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(.~ref_AF, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp20_age_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+get_lm_df1 <- function(long_data, intercept=T){
+  if(intercept){
+    lm_df1 <- long_data %>%
+      filter(!release  & !is.na(label)) %>%
+      group_by(label, ref_AF) %>%
+      do(tidy(lm(value ~ contamination, data = .)))
+  }else{
+    lm_df1 <- long_data %>%
+      filter(!release  & !is.na(label)) %>%
+      group_by(label, ref_AF) %>%
+      do(tidy(lm(value ~ contamination + 0, data = .)))
+  }
+  return(lm_df1)
+}
+
+get_lm_df2 <- function(long_data, intercept=T){
+  if(intercept){
+    lm_df2 <- long_data %>%
+      filter(!release  & !is.na(label)) %>%
+      group_by(label, ref_AF) %>%
+      do(glance(lm(value ~ contamination, data = .)))
+  }else{
+    lm_df2 <- long_data %>%
+      filter(!release  & !is.na(label)) %>%
+      group_by(label, ref_AF) %>%
+      do(glance(lm(value ~ contamination + 0, data = .)))
+  }
+  return(lm_df2)
+}
+
+get_lm_df <- function(lm_df1, lm_df2){
+  lm_df <- lm_df1 %>%
+    select(1:5, 8) %>%
+    rbind(., lm_df2 %>% select(1:3, 15) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error, dp_filter)) %>%
+    mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared')))
+  return(lm_df)
+}
+
+get_figure_lm_by_ref_AF <- function(data, version, var_type, DP, intercept=TRUE, save=TRUE){
+  if(version == 'v3'){
+    data <- data %>%
+      filter(label != 'Other')
+  }else{
+    # data <- rbind(
+    #   long_data %>% filter(label == 'Broad'),
+    #   long_data %>% filter(label ==  'Other')) %>%
+    #   filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06))
+    # colors <- c('#045494', 'gray')
+    # var_lab <- 0.025
+    # annt_x <- 0.045
+    # annt_y <- 0.035
+  }
+  figure <-data %>%
+    filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+    mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+    ggplot + 
+    labs(title = paste0('CHARR', dp_names[DP],' ~ Freemix score'), x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+    geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+    geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+    scale_color_manual(values = c('#045494', 'gray') ) +
+    themes +  theme_classic() + 
+    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+          axis.text = element_text(family = 'Arial', size = 12),
+          axis.text.x = element_text(family = 'Arial', size = 10),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          legend.position = 'top',
+          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    facet_grid(term~dp_filter, scale = 'free')
+  if(save){
+    name = if_else(intercept, '', '_no_intercept')
+    png(paste0(figure_path, 'gnomad_', version,'_contam_dp', DP, '_', var_type,'_linear_model', name,'_for_supplement.png'), 
+        height = if_else(intercept, 6, 4), 
+        width = 10, 
+        units = 'in', 
+        res = 300)
+    print(figure)
+    dev.off()
+    }
+  return(figure)
+}
+get_figure_lm_by_dp_ref_AF <- function(var_type, intercept=TRUE){
+  v3_no_dp_lm_df1 <- get_lm_df1(v3_no_dp_long, intercept = intercept)
+  v3_dp10_lm_df1 <- get_lm_df1(v3_dp10_long, intercept = intercept)
+  v3_dp20_lm_df1 <- get_lm_df1(v3_dp20_long, intercept = intercept)
+  v3_no_dp_lm_df2 <- get_lm_df2(v3_no_dp_long, intercept = intercept)
+  v3_dp10_lm_df2 <- get_lm_df2(v3_dp10_long, intercept = intercept)
+  v3_dp20_lm_df2 <- get_lm_df2(v3_dp20_long, intercept = intercept)
+  v3_lm_df1 <- as.data.frame(rbind(v3_no_dp_lm_df1, v3_dp10_lm_df1, v3_dp20_lm_df1)) %>% 
+    mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=if_else(intercept, 36, 18)), 
+                              levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+  v3_lm_df2 <- as.data.frame(rbind(v3_no_dp_lm_df2, v3_dp10_lm_df2, v3_dp20_lm_df2)) %>% 
+    mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                              levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+  v3_lm_df <- get_lm_df(v3_lm_df1, v3_lm_df2)
+  figure <- get_figure_lm_by_ref_AF(v3_lm_df, 'v3', var_type, '_all', intercept, T)
+  return(figure)
+}
+```
+
+```{r, fig.width=6, fig.height=2}
+get_figure_lm_by_dp_ref_AF('snp', intercept=F) 
+```
+
+```{r, fig.width=6, fig.height=2}
+get_figure_lm_by_dp_ref_AF('snp', intercept=T) 
+```
+
+```{r}
+v3_dp20_lm_df <- v3_dp20_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v3_dp20_lm_df2 <- v3_dp20_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_dp20_lm_df %>%
+  select(1:5) %>%
+  rbind(., v3_dp20_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (20 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp20_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v3_dp20_lm0_df <- v3_dp20_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v3_dp20_lm0_df2 <- v3_dp20_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_dp20_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v3_dp20_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (20 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp20_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### 10 \< DP \< 100
+
+#### Process data
+
+```{r, warning=FALSE}
+v3_dp10_long <- convert_to_long_format(v3_dp10, 'v3')
+v3_n_var_dp10 <- get_n_hom_var_table(v3_dp10)
+```
+
+#### Produce figure
+
+```{r, echo=FALSE}
+figure <- rbind(
+  v3_dp10_long %>% filter(label == 'Broad (gnomAD)'),
+  v3_dp10_long %>% filter(label ==  'Other'),
+  v3_dp10_long %>% filter(label ==  'Sanger (HGDP)')
+)%>%
+  filter(!release) %>%
+  ggplot + aes(x = contamination, y = value, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (10 < DP < 100)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free') +
+  geom_label(data = v3_n_var_dp10, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.05, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') + 
+  annotate(geom='text', x=0.095, y=0.08,label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp10_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v3_dp10_long <- v3_dp10_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins))
+figure <- v3_dp10_long %>%
+  filter(!release & !is.na(age)) %>%
+  ggplot + aes(x = age_bin, y = value, color=age_bin) +
+  labs(x = 'Age', y = 'CHARR (10 < DP < 100)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  scale_color_brewer(palette = 'Spectral') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp10_age_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+v3_dp10_cor_df <- v3_dp10_long %>%
+  filter(!release & !is.na(label)) %>%
+  group_by(label, ref_AF) %>% 
+  summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_dp10_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR (10 < DP < 100)', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = c(0.85, 0.25),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp10_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+v3_dp10_lm_df <- v3_dp10_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v3_dp10_lm_df2 <- v3_dp10_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_dp10_lm_df %>%
+  select(1:5) %>%
+  rbind(., v3_dp10_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (10 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp10_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v3_dp10_lm0_df <- v3_dp10_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v3_dp10_lm0_df2 <- v3_dp10_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_dp10_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v3_dp10_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (10 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_dp10_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### No filter on DP
+
+#### Process data
+
+```{r, warning=FALSE}
+v3_no_dp_long <- convert_to_long_format(v3_no_dp, 'v3')
+v3_n_var_no_dp<- get_n_hom_var_table(v3_no_dp)
+```
+
+#### Produce figure
+
+```{r, echo=FALSE}
+figure <- rbind(
+  v3_no_dp_long %>% filter(label == 'Broad (gnomAD)'),
+  v3_no_dp_long %>% filter(label ==  'Other'),
+  v3_no_dp_long %>% filter(label ==  'Sanger (HGDP)')
+)%>%
+  filter(!release) %>%
+  ggplot + aes(x = contamination, y = value, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (No DP filter)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free') +
+  geom_label(data = v3_n_var_no_dp, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.05, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') + 
+  annotate(geom='text', x=0.095, y=0.08,label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v3_no_dp_long <- v3_no_dp_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins))
+figure <- v3_no_dp_long %>%
+  filter(!release & !is.na(age)) %>%
+  ggplot + aes(x = age_bin, y = value, color=age_bin) +
+  labs(x = 'Age', y = 'CHARR (No DP filter)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  scale_color_brewer(palette = 'Spectral') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free')
+figure
+```
+
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_age_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+v3_no_dp_cor_df <- v3_no_dp_long %>%
+  filter(!release & !is.na(label)) %>%
+  group_by(label, ref_AF) %>% 
+  summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_no_dp_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR (No DP filter)', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = c(0.85, 0.25),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+v3_no_dp_lm_df <- v3_no_dp_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v3_no_dp_lm_df2 <- v3_no_dp_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_no_dp_lm_df %>%
+  select(1:5) %>%
+  rbind(., v3_no_dp_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (No DP filter) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v3_no_dp_lm0_df <- v3_no_dp_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v3_no_dp_lm0_df2 <- v3_no_dp_long %>%
+  filter(!release  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v3_no_dp_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v3_no_dp_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (No DP filter) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_no_dp_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Combined figure
+
+#### Pearson's correlation
+
+```{r}
+v3_cor_df <- as.data.frame(rbind(v3_no_dp_cor_df, v3_dp10_cor_df, v3_dp20_cor_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v3_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~dp_filter)
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_correlation_full_for_supplement.png'), height = 4, width = 10, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression - with intercept
+
+```{r}
+v3_lm_df <- as.data.frame(rbind(v3_no_dp_lm_df, v3_dp10_lm_df, v3_dp20_lm_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=36), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v3_lm_df2 <- as.data.frame(rbind(v3_no_dp_lm_df2, v3_dp10_lm_df2, v3_dp20_lm_df2)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v3_lm_df %>%
+  select(1:5, 8) %>%
+  rbind(., v3_lm_df2 %>% select(1:3, 15) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error, dp_filter)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(term~dp_filter, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_linear_regression_full_for_supplement.png'), height = 8, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression - without intercept
+
+```{r}
+v3_lm0_df <- as.data.frame(rbind(v3_no_dp_lm0_df, v3_dp10_lm0_df, v3_dp20_lm0_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v3_lm0_df2 <- as.data.frame(rbind(v3_no_dp_lm0_df2, v3_dp10_lm0_df2, v3_dp20_lm0_df2)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=18), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v3_lm0_df %>%
+  select(1:5, 8) %>%
+  rbind(., v3_lm0_df2 %>% select(1:3, 15) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error, dp_filter)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(term~dp_filter, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_contam_linear_regression_no_intercept_full_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+## WES gnomAD v2
+
+### 20 \< DP \< 100
+
+#### Process data
+
+```{r, warning=FALSE}
+v2_dp20_long <- convert_to_long_format(v2_dp20, 'v2')
+v2_n_var_dp20 <- get_n_hom_var_table(v2_dp20)
+```
+
+#### Produce figure
+
+```{r, echo=FALSE}
+figure <- rbind(
+  v2_dp20_long %>% filter(label == 'Broad'),
+  v2_dp20_long %>% filter(label ==  'Other')
+)%>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)) %>%
+  ggplot + aes(x = contamination, y = value, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (20 < DP < 100)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free') +
+  geom_label(data = v2_n_var_dp20, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.025, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') + 
+  annotate(geom='text', x=0.045, y=0.035,label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v2_dp20_long <- v2_dp20_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins))
+figure <- v2_dp20_long %>%
+  filter(releasable & !is.na(age)) %>%
+  ggplot + aes(x = age_bin, y = value, color=age_bin) +
+  labs(x = 'Age', y = 'CHARR (20 < DP < 100)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  scale_color_brewer(palette = 'Spectral') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_age_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+v2_dp20_cor_df <- v2_dp20_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06) & !is.na(label)) %>%
+  group_by(label, ref_AF) %>% 
+  summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp20_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR (20 < DP < 100)', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = c(0.85, 0.25),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+v2_dp20_lm_df <- v2_dp20_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v2_dp20_lm_df2 <- v2_dp20_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp20_lm_df %>%
+  select(1:5) %>%
+  rbind(., v2_dp20_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (20 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v2_dp20_lm0_df <- v2_dp20_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v2_dp20_lm0_df2 <- v2_dp20_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp20_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v2_dp20_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (20 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp20_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### 10 \< DP \< 100
+
+#### Process data
+
+```{r, warning=FALSE}
+v2_dp10_long <- convert_to_long_format(v2_dp10, 'v2')
+v2_n_var_dp10 <- get_n_hom_var_table(v2_dp10)
+```
+
+#### Produce figure
+
+```{r, echo=FALSE}
+figure <- rbind(
+  v2_dp10_long %>% filter(label == 'Broad'),
+  v2_dp10_long %>% filter(label ==  'Other')
+)%>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)) %>%
+  ggplot + aes(x = contamination, y = value, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (10 < DP < 100)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free') +
+  geom_label(data = v2_n_var_dp10, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.025, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') + 
+  annotate(geom='text', x=0.045, y=0.035,label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp10_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v2_dp20_long <- v2_dp20_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
+         version = 'gnomAD v2 (WES)') %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)) %>%
+  select(value, ref_AF, age_bin, version)
+v3_dp20_long <- v3_dp20_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
+         version = 'gnomAD v3 (WGS)') %>%
+  filter(!release)%>%
+  select(value, ref_AF, age_bin, version)
+dp20 <- rbind(v3_dp20_long, v2_dp20_long) 
+figure <- dp20 %>%
+  filter(!is.na(age_bin)) %>%
+  filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
+  ggplot + aes(x = age_bin, y = value) +
+  labs(x = 'Age', y = 'CHARR (20 < DP < 100)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  # scale_color_brewer(palette = 'PuBu') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(.~version, scale = 'free')
+figure
+# figure <- v2_dp20_long %>%
+#   filter(releasable & !is.na(age)) %>%
+#   filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
+#   ggplot + aes(x = age_bin, y = value) +
+#   labs(x = 'Age', y = 'CHARR (20 < DP < 100)') +
+#   geom_boxplot() + 
+#   coord_flip() +
+#   scale_y_log10() +
+#   themes +  theme_classic() +
+#   # scale_color_brewer(palette = 'Spectral') +
+#   theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+#         legend.text = element_text(family = 'Arial', size = 12),
+#         legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+#         axis.text = element_text(family = 'Arial', size = 12),
+#         strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+#   facet_wrap(.~ref_AF, scale = 'free')
+# figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_contam_dp20_age_for_supplement.png'), height = 4, width = 7.5, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+v2_dp10_cor_df <- v2_dp10_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06) & !is.na(label)) %>%
+  group_by(label, ref_AF) %>% 
+  summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp10_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR (10 < DP < 100)', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = c(0.85, 0.25),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp10_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+v2_dp10_lm_df <- v2_dp10_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v2_dp10_lm_df2 <- v2_dp10_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp10_lm_df %>%
+  select(1:5) %>%
+  rbind(., v2_dp10_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (10 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp10_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v2_dp10_lm0_df <- v2_dp10_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v2_dp10_lm0_df2 <- v2_dp10_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_dp10_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v2_dp10_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (10 < DP < 100) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_dp10_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### No filter on DP
+
+#### Process data
+
+```{r, warning=FALSE}
+v2_no_dp_long <- convert_to_long_format(v2_no_dp, 'v2')
+v2_n_var_no_dp<- get_n_hom_var_table(v2_no_dp)
+```
+
+#### Produce figure
+
+```{r, echo=FALSE}
+figure <- rbind(
+  v2_no_dp_long %>% filter(label == 'Broad'),
+  v2_no_dp_long %>% filter(label ==  'Other')
+)%>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)) %>%
+  ggplot + aes(x = contamination, y = value, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (No DP filter)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free') +
+  geom_label(data = v2_n_var_no_dp, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.025, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') + 
+  annotate(geom='text', x=0.045, y=0.035,label='y=x', family = 'Arial', size=6)
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_no_dp_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Age vs. CHARR
+```{r, echo=FALSE}
+v2_no_dp_long <- v2_no_dp_long %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins))
+figure <- v2_no_dp_long %>%
+  filter(releasable & !is.na(age)) %>%
+  ggplot + aes(x = age_bin, y = value, color=age_bin) +
+  labs(x = 'Age', y = 'CHARR (No DP filter)', color = 'Age') +
+  geom_boxplot() + 
+  coord_flip() +
+  scale_y_log10() +
+  themes +  theme_classic() +
+  scale_color_brewer(palette = 'Spectral') +
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(.~ref_AF, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_no_dp_age_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Pearson's correlation test
+
+```{r}
+v2_no_dp_cor_df <- v2_no_dp_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06) & !is.na(label)) %>%
+  group_by(label, ref_AF) %>% 
+  summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_no_dp_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR (No DP filter)', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494',  'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = c(0.85, 0.25),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_no_dp_correlation_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression model
+
+#### with intercept
+
+```{r}
+v2_no_dp_lm_df <- v2_no_dp_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination, data = .)))
+```
+
+```{r}
+v2_no_dp_lm_df2 <- v2_no_dp_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_no_dp_lm_df %>%
+  select(1:5) %>%
+  rbind(., v2_no_dp_lm_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (No DP filter) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_no_dp_linear_regression_for_supplement.png'), height = 4, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+#### without intercept
+
+```{r}
+v2_no_dp_lm0_df <- v2_no_dp_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(tidy(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r}
+v2_no_dp_lm0_df2 <- v2_no_dp_long %>%
+  filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06)  & !is.na(label)) %>%
+  group_by(label, ref_AF) %>%
+  do(glance(lm(value ~ contamination + 0, data = .)))
+```
+
+```{r, echo=FALSE}
+figure <- v2_no_dp_lm0_df %>%
+  select(1:5) %>%
+  rbind(., v2_no_dp_lm0_df2 %>% select(1:3) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR (No DP filter) ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~term, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_no_dp_linear_regression_no_intercept_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Combined figure
+
+#### Pearson's correlation
+
+```{r}
+v2_cor_df <- as.data.frame(rbind(v2_no_dp_cor_df, v2_dp10_cor_df, v2_dp20_cor_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v2_cor_df %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'Freemix score vs. CHARR', x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_wrap(~dp_filter)
+figure
+  
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_correlation_full_for_supplement.png'), height = 4, width = 10, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression - with intercept
+
+```{r}
+v2_lm_df <- as.data.frame(rbind(v2_no_dp_lm_df, v2_dp10_lm_df, v2_dp20_lm_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=24), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v2_lm_df2 <- as.data.frame(rbind(v2_no_dp_lm_df2, v2_dp10_lm_df2, v2_dp20_lm_df2)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v2_lm_df %>%
+  select(1:5, 8) %>%
+  rbind(., v2_lm_df2 %>% select(1:3, 15) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error, dp_filter)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(term~dp_filter, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_linear_regression_full_for_supplement.png'), height = 8, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+### Linear regression - without intercept
+
+```{r}
+v2_lm0_df <- as.data.frame(rbind(v2_no_dp_lm0_df, v2_dp10_lm0_df, v2_dp20_lm0_df)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+v2_lm0_df2 <- as.data.frame(rbind(v2_no_dp_lm0_df2, v2_dp10_lm0_df2, v2_dp20_lm0_df2)) %>% 
+  mutate(dp_filter = factor(rep(c('No DP filter', '10 < DP < 100', '20 < DP < 100'), each=12), 
+                            levels =c('No DP filter', '10 < DP < 100', '20 < DP < 100') ))
+```
+
+```{r, echo=FALSE}
+figure <- v2_lm0_df %>%
+  select(1:5, 8) %>%
+  rbind(., v2_lm0_df2 %>% select(1:3, 15) %>% mutate(term = 'R-squared', std.error = NA) %>% select(label, ref_AF, term, estimate = r.squared, std.error, dp_filter)) %>%
+  mutate(term = factor(if_else(term=='(Intercept)', 'Intercept', if_else(term=='contamination', 'Slope', term)), levels = c('Intercept', 'Slope', 'R-squared'))) %>%
+  filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+  mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+  ggplot + 
+  labs(title = 'CHARR ~ Freemix score', x = 'Reference allele frequency', y = "LR estimates", color = 'Sequencing sites') +
+  geom_pointrange(aes(x = ref_AF, y = estimate, ymin = estimate - std.error, ymax = estimate + std.error, group = label, color = label)) + 
+  geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+  scale_color_manual(values = c('#045494',  'gray') ) +
+  themes +  theme_classic() + 
+  theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+        axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        axis.text.x = element_text(family = 'Arial', size = 10),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  facet_grid(term~dp_filter, scale = 'free')
+figure
+```
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v2_contam_linear_regression_no_intercept_full_for_supplement.png'), height = 6, width = 12, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+## HGDP VerifyBamID comparison
+```{r}
+hgdp <- v3_dp20 %>%
+    mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')))
+hgdp <- rbind(
+  hgdp %>% filter(label ==  'Broad (gnomAD)'),
+  hgdp %>% filter(label ==  'Sanger (HGDP)')
+) %>% filter(final_release & contamination < 0.06) %>%
+  mutate(Version = 'Old', contamination=contamination) %>%
+  rbind(
+    rbind(
+      hgdp %>% filter(label ==  'Broad (gnomAD)'),
+      hgdp %>% filter(label ==  'Sanger (HGDP)')
+      )%>%
+      filter(final_release & contamination < 0.06) %>%
+      mutate(Version = 'Recomputed', contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination))
+    )
+```
+
+```{r}
+figure <- hgdp %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR (20 < DP < 100)', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        legend.position = 'top',
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.045, y=0.05, label='y=x', family = 'Arial', size=6) + 
+  facet_grid(~Version)
+figure
+```
+
+```{r}
+    png(paste0(figure_path, 'gnomad_v3_hgdp_before_after_recomputing_for_supplement.png'), 
+        height = if_else(intercept, 6, 4), 
+        width = 8, 
+        units = 'in', 
+        res = 300)
+    print(figure)
+    dev.off()
+```
+
+
+
+```{r, echo=FALSE}
+hgdp <- v3_dp20 %>%
+    mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external')))
+figure1 <- rbind(
+  hgdp %>% filter(label ==  'Broad (gnomAD)'),
+  # hgdp %>% filter(label ==  'Other'),
+  hgdp %>% filter(label ==  'Sanger (HGDP)')
+)%>%
+  filter(final_release & contamination < 0.06) %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = 'CHARR', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.055, y=0.05, label='y=x', family = 'Arial', size=6)
+figure1
+```
+
+```{r, echo=FALSE}
+figure2 <- rbind(
+  hgdp %>% filter(label ==  'Broad (gnomAD)'),
+  # hgdp %>% filter(label ==  'Other'),
+  hgdp %>% filter(label ==  'Sanger (HGDP)')
+)%>%
+  filter(final_release & contamination < 0.06) %>%
+  mutate(contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination)) %>%
+  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
+  labs(x = 'Freemix Score', y = NULL, color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.055, y=0.05, label='y=x', family = 'Arial', size=6)
+figure2
+```
+```{r, echo=FALSE}
+figure = ggpubr::ggarrange(figure1, figure2, ncol = 2,
+                            labels = c('Old', 'Recomputed'),
+                             common.legend = TRUE,
+                             vjust = 1, hjust = 0, font.label = list(size = 13, color = "black", face = "bold", family = 'Arial')
+    )
+figure
+```
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_hgdp_before_after_recomputing_for_supplement.png'), height = 4, width = 8, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+```{r}
+figure <- hgdp %>%
+  filter(final_release & !is.na(recomputed_contamination) & contamination < 0.06) %>%
+  ggplot + aes(x = contamination, y = recomputed_contamination, color = label) +
+  labs(x = 'Old', y = 'Recomputed', color = 'Sequencing site') +
+  geom_point(alpha=0.8, size = 1) + 
+  geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+  scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.position='None',
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+  annotate(geom='text', x=0.05, y=0.045, label='y=x', family = 'Arial', size=6)
+figure
+```
+
+
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE, eval=FALSE}
+png(paste0(figure_path, 'gnomad_v3_hgdp_verifybamID_comparison_for_supplement.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+### Indels - v3
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_indel_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp20, 'v3', var_type = 'indel', DP = 'no', save=TRUE)
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp20, 'v3', var_type = 'indel', DP = '10', save=TRUE)
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp20, 'v3', var_type = 'indel', DP = '20', save=TRUE)
+```
+
+### all variants - v3
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp20.tsv')) 
+v3_dp10 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp10.tsv')) 
+v3_no_dp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_no_dp.tsv')) 
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_no_dp, 'v3', var_type = 'all', DP = 'no', save=TRUE)
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp10, 'v3', var_type = 'all', DP = '10', save=TRUE)
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp20, 'v3', var_type = 'all', DP = '20', save=TRUE)
+```
+### Remove Age gene
+```{r, message=FALSE, results='hide', warning=FALSE}
+v3_dp20_age <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_age_gene.tsv')) 
+v3_dp20 <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+```
+
+```{r}
+v3_dp20_long_data_age <- convert_to_long_format(v3_dp20_age, 'v3') %>% mutate(AF_source = '3 age gene removed')
+v3_dp20_var_cnt_data_age <- get_n_hom_var_table(v3_dp20_age) %>% mutate(AF_source = '3 age gene removed')
+v3_dp20_long_data <- convert_to_long_format(v3_dp20, 'v3') %>% mutate(AF_source = 'All SNPs')
+v3_dp20_var_cnt_data <- get_n_hom_var_table(v3_dp20) %>% mutate(AF_source = 'All SNPs')
+```
+
+```{r}
+v3_dp20_long_data_full <- rbind(v3_dp20_long_data_age, v3_dp20_long_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)') & label != 'Other')
+v3_dp20_var_cnt_data_full <- rbind(v3_dp20_var_cnt_data_age, v3_dp20_var_cnt_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v3_dp20_long_data_full, v3_dp20_var_cnt_data_full, 'v3', var_type = 'fig_S14', DP = '20', save=T)
+```
+```{r}
+data <- rbind(v3_dp20_long_data_age, v3_dp20_long_data) %>% 
+  filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (5%, 95%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)') & label != 'Other') %>%
+      filter(!release & !is.na(label)) %>%
+      group_by(label, ref_AF, AF_source) %>% 
+      dplyr::summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r}
+figure <- data %>%
+    filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+    mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+    ggplot + 
+    labs(title = paste0('CHARR (', dp_names['20'],', SNP) ~ Freemix score'), x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+    geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+    geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+    scale_color_manual(values = c('#045494', 'gray') ) +
+    themes +  theme_classic() + 
+    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+          axis.text = element_text(family = 'Arial', size = 12),
+          axis.text.x = element_text(family = 'Arial', size = 10),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          legend.position = 'top',
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    facet_grid(~AF_source, scale = 'free') +
+    annotate(geom='text', x=Inf, y=-Inf,label=expression(p.values<10^-100), family = 'Arial', size=4, hjust = 1, vjust=-0.8)
+figure
+```
+```{r}
+png(paste0(figure_path, 'gnomad_v3_contam_dp20_snp_age_gene_correlation_figS15_for_supplement.png'), height = 4, width = 7.5, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+### Using v3 ref-AF for v4
+```{r, message=FALSE, results='hide', warning=FALSE}
+v2_dp20_new <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_using_v3_af_adjust_dp20_100.tsv')) 
+v2_dp20 <- read_tsv(paste0(data_path,'gnomad_v2_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) 
+```
+
+```{r}
+v2_dp20_long_data_new <- convert_to_long_format(v2_dp20_new, 'v2') %>% mutate(AF_source = 'AF Source: v3 (WGS)')
+v2_dp20_var_cnt_data_new <- get_n_hom_var_table(v2_dp20_new) %>% mutate(AF_source = 'AF Source: v3 (WGS)')
+v2_dp20_long_data <- convert_to_long_format(v2_dp20, 'v2') %>% mutate(AF_source = 'AF Source: v2 (WES)')
+v2_dp20_var_cnt_data <- get_n_hom_var_table(v2_dp20) %>% mutate(AF_source = 'AF Source: v2 (WES)')
+```
+
+```{r}
+v2_dp20_long_data_full <- rbind(v2_dp20_long_data_new, v2_dp20_long_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+v2_dp20_var_cnt_data_full <- rbind(v2_dp20_var_cnt_data_new, v2_dp20_var_cnt_data) %>% filter(ref_AF %in% c('ref-AF: (1%, 99%)', 'ref-AF: (10%, 90%)', 'ref-AF: (20%, 80%)'))
+```
+
+```{r}
+
+```
+
+```{r}
+get_figure_charr_freemix_by_ref_AF(v2_dp20_long_data_full, v2_dp20_var_cnt_data_full, 'v2', var_type = 'fig_S11', DP = '20', save=TRUE)
+```
+
+```{r}
+data <- v2_dp20_long_data_full %>%
+      filter(releasable & ((ref_AF == 'ref-AF: (0%, 100%)') | value < 0.06) & !is.na(label)) %>%
+      group_by(label, ref_AF, AF_source) %>% 
+      dplyr::summarize(tidy(cor.test(contamination, value)))
+```
+
+```{r}
+figure <- data %>%
+    filter(!(ref_AF %in% c('ref-AF: (0%, 100%)', 'None'))) %>%
+    mutate(ref_AF = factor(str_replace(ref_AF, 'ref-AF: ', ''), levels = c('(1%, 99%)', '(5%, 95%)', '(10%, 90%)', '(20%, 80%)'))) %>%
+    ggplot + 
+    labs(title = paste0('CHARR (', dp_names['20'],', SNP) ~ Freemix score'), x = 'Reference allele frequency', y = "Pearson's correlation", color = 'Sequencing sites') +
+    geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
+    geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
+    scale_color_manual(values = c('#045494', 'gray') ) +
+    themes +  theme_classic() + 
+    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
+          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
+          axis.text = element_text(family = 'Arial', size = 12),
+          axis.text.x = element_text(family = 'Arial', size = 10),
+          legend.text = element_text(family = 'Arial', size = 12),
+          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
+          legend.position = 'top',
+          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    facet_grid(~AF_source, scale = 'free') +
+    annotate(geom='text', x=Inf, y=-Inf,label=expression(p.values<10^-100), family = 'Arial', size=4, hjust = 1, vjust=-0.8)
+figure
+```
+
+
+```{r}
+pop_freq <- read_tsv(paste0(data_path,'gnomad_v3_contaminant_pop_freq_test_ref_AB_1_annotated.tsv')) %>%
+  mutate(inferred_pop = factor(inferred_pop, levels = c('nfe', 'fin', 'mid', 'oth', 'ami', 'asj', 'afr', 'eas', 'sas', 'amr')),
+         true_pop = factor(true_pop, levels=c('nfe', 'fin', 'mid', 'oth', 'ami', 'asj', 'afr', 'eas', 'sas', 'amr')))
+```
+```{r}
+pop_freq %>%
+  group_by(true_pop, inferred_pop) %>%
+  dplyr::summarize(cnt = n()) %>%
+ggplot + aes(x=true_pop, y=inferred_pop, fill=log10(cnt)) + 
+  geom_tile()+ 
+geom_text(aes(true_pop, inferred_pop, label =cnt), color = "black", size = 4)  
+```
+
+```{r}
+table(pop_freq$inferred_pop, pop_freq$true_pop)
+```
+
+```{r}
+pop_freq %>%
+  filter(label != 'external') %>%
+  mutate(same_pop = true_pop == inferred_pop) %>%
+  # mutate(contamination = if_else(!is.na(recomputed_contamination), recomputed_contamination, contamination)) %>%
+  ggplot + aes(x = same_pop, y = contamination) + geom_boxplot() + scale_y_log10()
+```
+
+
