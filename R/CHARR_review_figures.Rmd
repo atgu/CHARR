@@ -1,0 +1,285 @@
+---
+title: "CHARR_revsion_analysis"
+output: html_document
+date: "2023-08-09"
+---
+
+# Data Setup
+```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
+source('~/CHARR/R/constants.R')
+```
+
+## Generate file containing all the path to n-way chrom 1 CRAMs
+```{r}
+# gsutil ls gs://gnomad-wenhan/charr_simulation/mixed_samples/v2/crams/cram_by_chrom/** | grep _chr1_ > ~/Desktop/charr_all_n_way_chr1_crams.txt
+files <- read_table('~/Desktop/charr_all_n_way_chr1_crams.txt', col_names = F)
+```
+
+```{r}
+crams <- files$X1[2*(1:150) -1]
+crais <- files$X1[2*(1:150)]
+s <- str_split(crams, '/') %>% map_chr(., 9)
+files <- data.frame(final_cram_path = crams, final_crai_path = crais, s=s)
+```
+
+```{r}
+write.table(files, '~/Desktop/charr_all_n_way_chr1_crams.txt', row.names = F, quote = F)
+```
+
+## Generate a .fam file to run Peddy
+```{r}
+IID <- str_replace_all(str_replace_all(str_split(crams, '/') %>% map_chr(., -1), '_chr1', ''), '.cram', '')
+fam <- data.frame(FID=IID, IID=IID, PID=0, MID=0, SEX=0, Y=0)
+```
+
+```{r}
+write.table(fam, '~/Desktop/hgdp_n_way_mixed_samples_full_150_samples.fam', row.names = F, quote = F)
+```
+
+## CHARR on chromosome 1
+
+```{r}
+chr1_n_way <- read.csv(paste0(data_path, 'rev_data/hgdp_n_way_simulation_full_150_samples_chr1_only.csv'), sep='\t')
+chr1_n_way <- chr1_n_way %>%
+  mutate(AF_type = paste0('chr1 ', AF_type)) %>%
+  select(s, original, contam_rate, pop_original = pop, charr, AF_type) %>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) %>% 
+  mutate(contam_rate_percent = paste0(contam_rate*100, '%'))
+```
+
+```{r}
+callrate_filtered_charr <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr_gnomad_0.csv'), sep='\t')%>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) 
+callrate_filtered_full <- callrate_filtered_charr %>%
+  select(1, 4:5, 7, charr=freemix_score) %>%
+  mutate(AF_type = 'Freemix Score') %>%
+  distinct() %>%
+  rbind(callrate_filtered_charr %>% select(1, 4:5,7, 2,3)) %>%
+  mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), T, F),
+         main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) %>% 
+  mutate(contam_rate_percent = paste0(contam_rate*100, '%')) %>%
+  rbind(., chr1_n_way)
+```
+
+
+```{r}
+save = T
+contam_rates <- c('0.5%', '1%', '2%', '5%', '10%')
+names(contam_rates) <- c(0.005, 0.01, 0.02, 0.05, 0.1)
+figure <- callrate_filtered_full  %>%
+  filter(main_type %in% c('chr1 gnomAD AF', 'chr1 local AF ', 'gnomAD AF', 'local AF', 'Freemix Score')) %>%
+  filter(AF_type != 'gnomAD AF (Callrate filtered)') %>%
+  mutate(contam_rate_percent = factor(contam_rate, levels = c(0.005, 0.01, 0.02, 0.05, 0.1),
+                                      labels = c('0.5%', '1%', '2%', '5%', '10%'))) %>%
+  mutate(AF_type = if_else(AF_type == 'local AF (Callrate filtered)', 'local AF: 100% Callrate', AF_type)) %>%
+  mutate(AF_type = if_else(AF_type == 'Freemix Score', AF_type, paste0('CHARR Score \n (', AF_type, ')'))) %>%
+  mutate(AF_type = if_else(AF_type == 'CHARR Score \n (chr1 local AF  (Callrate filtered))', 'CHARR Score-chr1 \n (local AF: 100% Callrate)', AF_type)) %>%
+  mutate(AF_type = if_else(AF_type == 'CHARR Score \n (chr1 gnomAD AF)', 'CHARR Score-chr1 \n (gnomAD AF)', AF_type)) %>%
+  mutate(AF_type = factor(AF_type, levels = c('Freemix Score', 'CHARR Score \n (gnomAD AF)', 'CHARR Score-chr1 \n (gnomAD AF)', 'CHARR Score \n (local AF)', 'CHARR Score \n (local AF: 100% Callrate)', 'CHARR Score-chr1 \n (local AF: 100% Callrate)'))) %>%
+  ggplot + aes(y=charr, 
+               x=AF_type, 
+               color=AF_type,
+               fill = AF_type,
+               group=AF_type) +
+  geom_boxplot(alpha = 0.5) +
+  labs(x=NULL, y ='Contamination estimate', alpha = 'Callrate filtered', color = NULL, fill= NULL) + 
+  scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
+  scale_color_brewer(palette='Dark2') +
+  scale_fill_brewer(palette='Dark2') +
+  facet_wrap(~contam_rate, ncol=3, scales = 'free', labeller = labeller(contam_rate = contam_rates)) +
+  geom_hline(data = callrate_filtered_full, aes(yintercept = contam_rate), lty=2) +
+  themes + 
+  theme(legend.position = c(.85,.27), 
+        legend.text = element_text(size=10), 
+        legend.margin = margin(0,0,0,0, unit="cm"),
+        legend.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.key.size = unit(0.6, 'cm')) 
+if(save){
+  png(paste0(figure_path, 'SX_hgdp_n_way_mixed_callrate_charr_boplot_plus_chr1_results.png'), height = 3.5, width = 7, units = 'in', res = 300)
+  print(figure)
+  dev.off()
+}
+figure
+```
+```{r}
+charr_chr1_n_way <- read.csv(paste0(data_path, 'rev_data/hgdp_n_way_simulation_full_150_samples_chr1_only.csv'), sep='\t') %>% select(s, n_var, AF_type)
+vbid_chr1_n_way <- read.csv(paste0(data_path, 'rev_data/hgdp_n_way_simulation_vbid_n_var_chr1_only.csv'), sep=',') %>% select(s, n_var, AF_type)
+
+n_var <- rbind( charr_chr1_n_way, vbid_chr1_n_way) %>%
+  mutate(AF_type = if_else(AF_type == 'gnomAD AF', 'CHARR Score-chr1 \n (gnomAD AF)', AF_type)) %>%
+  mutate(AF_type = if_else(AF_type == 'local AF  (Callrate filtered)', 'CHARR Score-chr1 \n (local AF: 100% Callrate)', AF_type)) %>%
+  mutate(AF_type = factor(AF_type, levels= c('Freemix Score', 'CHARR Score-chr1 \n (gnomAD AF)', 'CHARR Score-chr1 \n (local AF: 100% Callrate)')))
+
+figure <- n_var %>%
+  filter(n_var > 5) %>%
+  ggplot + aes(x = n_var, color = AF_type, fill=AF_type) +
+  labs(x = 'Number of qualified variants', y='Count', color='Result type', fill = 'Result type') +
+  geom_histogram() +
+  scale_x_log10(label=comma) +
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') + themes
+
+png(paste0(figure_path, 'SX_hgdp_n_way_mixed__chr1_n_vars.png'), height = 4, width = 7.5, units = 'in', res = 300)
+print(figure)
+dev.off()
+figure
+```
+
+## Peddy
+```{r}
+callrate_filtered_charr <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr_gnomad_0.csv'), sep='\t') %>% filter( AF_type == 'local AF (Callrate filtered)')
+peddy_n_way <- read.csv(paste0(data_path, 'rev_data/peddy/charr_n_way.het_check.csv'), sep=',') %>% select(s=sample_id, het_ratio, ancestry.prediction)
+```
+
+
+```{r}
+peddy_full <- callrate_filtered_charr %>%
+  merge(., peddy_n_way, by = 's') %>%
+  mutate(peddy_pop = tolower(ancestry.prediction))
+peddy_full <- peddy_full %>%
+          mutate(AF_type='CHARR Score \n (local AF: Callrate filtered)')%>%
+  select(s, estimator=charr, AF_type, contam_rate, het_ratio) %>%
+  rbind(peddy_full %>%
+          mutate(AF_type='Freemix Score') %>%
+          select(s, estimator=freemix_score, AF_type, contam_rate, het_ratio))
+```
+
+```{r}
+p<- peddy_full %>%
+  mutate(AF_type = factor(AF_type, levels=c('Freemix Score', 'CHARR Score \n (local AF: Callrate filtered)'))) %>%
+  ggplot + aes(x = estimator, y=het_ratio, color = AF_type) +
+  labs(x = 'Contamination Estimator', y='Peddy: het ratio', color='Type') +
+  geom_point() + 
+  scale_color_brewer(palette = 'Dark2') +
+  scale_y_log10() + 
+  themes
+png(paste0(figure_path, 'SX_hgdp_n_way_peddy_results.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+## Check Bimodality
+```{r}
+v3_bimodality <- read.csv(paste0(data_path, 'rev_data/gnomad_v3_bimodality_check.csv'), sep='\t')
+v3_bimodality <- v3_bimodality %>%
+  merge(., v3_dp20 %>%select(s, label), by='s') 
+table(v3_bimodality$pcr_free)
+```
+
+```{r}
+tsv <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv'))
+tsv <- tsv %>% filter(subsets.hgdp) %>% select(s, pcr = bergstrom.library_type, source=bergstrom.source) 
+```
+
+```{r}
+v3_bimodality <- v3_bimodality %>%
+  merge(., tsv, by = 's', all.x = T) %>%
+  dplyr::mutate(pcr_free = if_else(is.na(pcr_free), pcr, pcr_free)) %>%
+  mutate(pcr_free = if_else(is.na(pcr_free), 'Missing', pcr_free) )%>%
+  mutate(pcr_free = if_else(pcr_free %in% c('No', 'PCR'), 'PCR', pcr_free)) %>%
+  mutate(pcr_free = if_else(pcr_free %in% c('PCR-free', 'PCRfree'), 'PCR-Free', pcr_free))
+```
+
+
+## t.test
+```{r}
+v3_bimodality_test <- v3_bimodality %>%
+  filter(pcr_free != 'Missing')
+test_sum <- t.test(mean_AB_snp_biallelic_af_adjust_10 ~ pcr_free, data = v3_bimodality_test)
+t.test(mean_AB_snp_biallelic_af_adjust_10 ~ pcr_free, data = v3_bimodality_test)
+```
+
+
+```{r}
+p<- v3_bimodality %>%
+  filter(label == 'hgdp') %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, color = pcr_free, fill=pcr_free) +
+  labs(x = 'CHARR', y='Density', color='PCR-free', fill = 'PCR-free') +
+  geom_histogram(alpha=0.5) +
+  scale_x_log10(label=comma) +
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') +
+  facet_grid(source~pcr_free, scale='free_y')
+p
+png(paste0(figure_path, 'SX_gnomad_v3_charr_bimodality_pcr_free_hist_hgdp_only.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+```{r}
+p<- v3_bimodality %>%
+  filter(label == 'hgdp') %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, color = pcr_free, fill=pcr_free) +
+  labs(x = 'CHARR', y='Density', color='PCR-free', fill = 'PCR-free') +
+  geom_density(alpha=0.5) +
+  scale_x_log10(label=comma) +
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') +
+  facet_grid(~source, scale='free_y')
+p
+png(paste0(figure_path, 'SX_gnomad_v3_charr_bimodality_pcr_free_hist_hgdp_only_log.png'), height = 4, width = 9, units = 'in', res = 300)
+print(p)
+dev.off()
+```
+
+
+# Deflation in VerifyBamID in WES data
+```{r}
+sub_v2_dp20 <- v2_dp20 %>% filter(charr)
+t.test(v2_dp20$contamination, v2_dp20$mean_AB_snp_biallelic_af_adjust_10, paired=T)
+```
+```{r}
+lm(v2_dp20$mean_AB_snp_biallelic_af_adjust_10~v2_dp20$contamination)
+```
+
+
+```{r}
+sub_n_way <- main_n_way %>%
+  filter(AF_type == 'local AF (Callrate filtered)' & contam_rate >= 0.05) 
+t.test(sub_n_way$charr, sub_n_way$freemix_score, paired=T)
+```
+```{r}
+main_n_way %>%
+  group_by(contam_rate) %>%
+  dplyr::summarize(mean_charr = mean(charr),
+                   mean_freemix = mean(freemix_score))
+```
+
+```{r}
+main_n_way %>%
+  filter(contam_rate>=0.05) %>%
+  dplyr::summarize(mean_charr = mean(charr),
+                   mean_freemix = mean(freemix_score))
+```
+# Age analysis
+```{r}
+# age_bins <- c('0-5', '5-10', '10-15', '15-20', '20-25', '25-30', '30-35', '35-40', '40-45', '45-50', '50-55', '55-60', '60-65', '65-70', '70-75', '75-80', '80-85', '> 85')
+# get_age_bins <- function(age){
+#   bins = case_when(
+#     age <= 5  ~ '0-5',
+#     age <= 10  ~ '5-10',
+#     age <= 15  ~ '10-15',
+#     age <= 20  ~ '15-20',
+#     age <= 25  ~ '20-25',
+#     age <= 30  ~ '25-30',
+#     age <= 35  ~ '30-35',
+#     age <= 40  ~ '35-40',
+#     age <= 45  ~ '40-45',
+#     age <= 50  ~ '45-50',
+#     age <= 55  ~ '50-55',
+#     age <= 60  ~ '55-60',
+#     age <= 65  ~ '60-65',
+#     age <= 70  ~ '65-70',
+#     age <= 75  ~ '70-75',
+#     age <= 80  ~ '75-80',
+#     age <= 85  ~ '80-85',
+#     age > 85  ~ '> 85',
+#   )
+#   return(bins)
+# }
+```
+
+

@@ -6,7 +6,7 @@ date: "2023-06-19"
 
 # Data Setup
 ```{r, echo=FALSE, message=FALSE, results='hide', warning=FALSE}
-source('~/Dropbox (Partners HealthCare)/contamination/R/constants.R')
+source('~/CHARR/R/constants.R')
 ```
 
 ## gnomAD v3 - WGS
@@ -25,6 +25,23 @@ v3_dp20_indel <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_ful
   filter(s %in% v3_meta$s)
 v3_dp20_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_all_bi_minimum_vds_af_adjust_dp20.tsv')) %>%
   filter(s %in% v3_meta$s)
+```
+
+```{r}
+## PCR_info
+v3_pcr <- read.csv(paste0(data_path, 'rev_data/gnomad_v3_bimodality_check.csv'), sep='\t')
+hgdp_info <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv')) %>% 
+  filter(subsets.hgdp) %>% 
+  select(s, pcr = bergstrom.library_type, source=bergstrom.source) 
+v3_pcr <- v3_pcr %>%
+  merge(., hgdp_info, by = 's', all.x = T) %>%
+  dplyr::mutate(pcr_free = if_else(is.na(pcr_free), pcr, pcr_free)) %>%
+  mutate(pcr_free = if_else(is.na(pcr_free), 'Missing', pcr_free) )%>%
+  mutate(pcr_free = if_else(pcr_free %in% c('No', 'PCR'), 'PCR', pcr_free)) %>%
+  mutate(pcr_free = if_else(pcr_free %in% c('PCR-free', 'PCRfree'), 'PCR-Free', pcr_free)) %>%
+  select(s, pcr_free)
+v3_dp20 <- v3_dp20 %>%
+  merge(., v3_pcr, by = 's')
 ```
 
 ### Convert to long format
@@ -113,29 +130,33 @@ figure
 
 ```{r}
 figure <- main_data %>%
-  ggplot + aes(x = contamination, color = label) +
-  labs(x = 'Freemix Score', y='Density', color = 'Sequencing site') +
+  select(estimator = mean_AB_snp_biallelic_af_adjust_10, label, data_type) %>% 
+  mutate(score_type='CHARR Score') %>%
+  rbind(main_data %>% select(estimator = contamination, label, data_type) %>% 
+  mutate(score_type='Freemix Score')) %>%
+  ggplot + aes(x = estimator, color = label) +
+  labs(x = 'Contamination Estimator', y='Density', color = 'Sequencing site') +
   geom_density() +
   # geom_point(alpha=0.8, size = 1) + 
   # geom_abline(slope = 1, intercept = 0, lty=2) +
   scale_color_manual(values = c('#045494', 'gray')) +
-  geom_vline(data = data.frame(data_type = c('(A): gnomAD v3 (WGS)', '(B): gnomAD v2 (WES)'), ref_line = c(0.003, 0.01)), aes(xintercept = ref_line), lty=2) +
+  # geom_vline(data = data.frame(data_type = c('(A): gnomAD v3 (WGS)', '(B): gnomAD v2 (WES)'), ref_line = c(0.003, 0.01), ), aes(xintercept = ref_line), lty=2) +
   themes +  theme_classic() + 
   theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
         legend.text = element_text(family = 'Arial', size = 12),
         legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
         legend.position = 'top',
         axis.text = element_text(family = 'Arial', size = 12),
-        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
-  # scale_x_log10() + 
-  facet_wrap(.~data_type, scale = 'free') 
+        strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+  scale_x_log10() + 
+  facet_grid(score_type~data_type, scale = 'free') 
 # +
 #   geom_label(data = main_var_cnt, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),
 #              x = 0.013, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
 #   annotate(geom='text', x= 0.048, y=Inf,vjust = 1, label='y=x', family = 'Arial', size=6)
 save <- T
 if(save){
-  png(paste0(figure_path, 'tmp3_M2_gnomad_contam_dp20_ref10_no_label.png'), height = 4, width = 7.5, units = 'in', res = 300)
+  png(paste0(figure_path, 'SX_log_density_gnomad_contam_dp20_ref10_no_label.png'), height = 6, width = 7.5, units = 'in', res = 300)
   print(figure)
   dev.off()
 }
@@ -294,153 +315,105 @@ figS9_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'S9', save=save, height = 4
 
 
 ```{r}
-# age_bins <- c('0-5', '5-10', '10-15', '15-20', '20-25', '25-30', '30-35', '35-40', '40-45', '45-50', '50-55', '55-60', '60-65', '65-70', '70-75', '75-80', '80-85', '> 85')
-# get_age_bins <- function(age){
-#   bins = case_when(
-#     age <= 5  ~ '0-5',
-#     age <= 10  ~ '5-10',
-#     age <= 15  ~ '10-15',
-#     age <= 20  ~ '15-20',
-#     age <= 25  ~ '20-25',
-#     age <= 30  ~ '25-30',
-#     age <= 35  ~ '30-35',
-#     age <= 40  ~ '35-40',
-#     age <= 45  ~ '40-45',
-#     age <= 50  ~ '45-50',
-#     age <= 55  ~ '50-55',
-#     age <= 60  ~ '55-60',
-#     age <= 65  ~ '60-65',
-#     age <= 70  ~ '65-70',
-#     age <= 75  ~ '70-75',
-#     age <= 80  ~ '75-80',
-#     age <= 85  ~ '80-85',
-#     age > 85  ~ '> 85',
-#   )
-#   return(bins)
-# }
-figS9_v2_v3_age_vs_charr <- function(v2_long_data, v3_long_data, name, save=TRUE, height = 4, width = 7.5){
-  v2_long_data <- v2_long_data %>%
-    filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
-    mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
-           version = 'gnomAD v2 (WES)') %>%
-    select(value, ref_AF, age_bin, version, age, label) %>%
-    mutate(charr_group = value > 0.005)
-  # print('v2 ANOVA:')
-  # print(summary(aov(value ~ age_bin, data = v2_long_data)))
-  print('v2 T-test')
-  print(t.test(age ~ charr_group, data = v2_long_data))
-  v3_long_data <- v3_long_data %>%
-    filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
-    mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
-           version = 'gnomAD v3 (WGS)') %>%
-    select(value, ref_AF, age_bin, version, age, label)%>%
-    mutate(charr_group = value > 0.005)
-  # print('v3 ANOVA:')
-  # print(summary(aov(value ~ age_bin, data = v3_long_data)))
-  print('v3 T-test')
-  print(t.test(age ~ charr_group, data = v3_long_data))
-  # print('v2:')
-  # print(table(v2_long_data[v2_long_data$ref_AF == 'ref-AF: (10%, 90%)','age_bin']))
-  # print('v3:')
-  # print(table(v3_long_data[v3_long_data$ref_AF == 'ref-AF: (10%, 90%)','age_bin']))
-  dp20 <- rbind(v3_long_data, v2_long_data) 
-  figure <- dp20 %>%
-    filter(!is.na(age_bin)) %>%
-    filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
-    ggplot + 
-    aes(x = value, color = age_bin) + 
-    geom_density() +
-    geom_vline(data = data.frame(version = c('gnomAD v3 (WGS)', 'gnomAD v2 (WES)'), ref_line = c(0.005, 0.01)), aes(xintercept = ref_line), lty=2) +
-    # aes(x = age_bin, y = value) +
-    # # labs(x = 'Age', y = 'CHARR (20 < DP < 100)', color = 'Age') +
-    labs(x = 'CHARR Score', y='Density', color = 'Age') +
-    # geom_jitter(alpha = 0.5, color = '#59788E') + 
-    # # geom_boxplot() + 
-    # coord_flip() +
-    # scale_x_log10() +
-    themes +  theme_classic() +
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
-    guides(color=guide_legend(ncol=1)) + 
-    facet_grid(.~version, scale = 'free')
-  if(save){
-    png(paste0(figure_path, name, '_gnomad_contam_dp20_age_vs_charr.png'), height = height, width = width, units = 'in', res = 300)
-    print(figure)
-    dev.off()
-  }
-  return(figure)
-}
-figS9_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'tmp2D_S9', save=T, height = 4, width = 7.5)
+v2_long_data <- v2_dp20_long %>%
+  filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
+         version = 'gnomAD v2 (WES)') %>%
+  select(value, ref_AF, age_bin, version, age, label) 
+print('v2 LM')
+print(summary(lm(value ~ age, data = v2_long_data)))
+v3_long_data <- v3_long_data %>%
+  filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
+  mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
+         version = 'gnomAD v3 (WGS)') %>%
+  select(value, ref_AF, age_bin, version, age, label, pcr_free)
+
+print('v3 LM CHARR ~ Age')
+print(summary(lm(value ~ age, data = v3_long_data )))
+print('v3 LM CHARR ~ Age + PCR')
+print(summary(lm(value ~ age + pcr_free, data = v3_long_data %>% filter(pcr_free != 'Missing'))))
+```
+
+# Supplement Figure 10
+```{r}
+p<- v3_dp20 %>%
+  mutate(pcr_free = factor(pcr_free, levels=c('PCR-Free', 'PCR', 'Missing'), labels=c('PCR-Free', 'PCR+', 'Missing'))) %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, color = pcr_free, fill=pcr_free) +
+  labs(x = 'CHARR', y='Density', color='Sequencing Method', fill = 'Sequencing Method') +
+  geom_density(alpha=0.5) +
+  scale_x_log10(label=comma) +
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') + 
+  themes
+p
+png(paste0(figure_path, 'S10_gnomad_v3_charr_bimodality_pcr_free_hist_all.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
 ```
 
 
-
-
-# Supplement Figure 10 | Freemix score old vs. recomputed version
+# Supplement Figure 11 | Freemix score old vs. recomputed version
 ```{r}
 save <- T
 hgdp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>% 
   mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external'))) 
-figS10_hgdp_freemix_before_after(hgdp, 'S10', save = save, height = 4, width = 6)
+figS11_hgdp_freemix_before_after(hgdp, 'S11', save = save, height = 4, width = 6)
 ```
 
-# Supplement Figure 11 | CHARR vs. Freemix Score before and after on HGDP samples
+# Supplement Figure 12 | CHARR vs. Freemix Score before and after on HGDP samples
 ```{r}
 save <- T
-figS11_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S11', save=save, height = 5, width = 7.5)
+figS12_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S12', save=save, height = 5, width = 7.5)
 ```
 
-# Supplement Figure 12 | HGDP sample selection
+# Supplement Figure 13 | HGDP sample selection
 ```{r}
 save = T
-fig12_hgdp_sample_selection('S12', save=save, height = 4, width = 10)
+fig13_hgdp_sample_selection('S13', save=save, height = 4, width = 10)
 ```
 
-# Supplement Figure 13 | CHARR vs. Freemix Score before and after decontamination on the selected HGDP samples
+# Supplement Figure 14 | CHARR vs. Freemix Score before and after decontamination on the selected HGDP samples
 ```{r}
 save= T
-figS13_sample_decontamination('S13', save=save, height = 4, width = 7.5)
+figS14_sample_decontamination('S14', save=save, height = 4, width = 7.5)
 ```
 
-# Supplement Figure 14 | 2 way freemixscore vs. CHARR color by the truth
+# Supplement Figure 15 | 2 way freemixscore vs. CHARR color by the truth
 ```{r}
 save = T
-figure1 = figS14_2_way_color_by_truth('S14A', save=save, height = 4, width = 6, type = 'gnomAD')
-figure2 = figS14_2_way_color_by_truth('S14B', save=save, height = 4, width = 6, type = 'sample')
+figure1 = figS15_2_way_color_by_truth('S15A', save=save, height = 4, width = 6, type = 'gnomAD')
+figure2 = figS15_2_way_color_by_truth('S15B', save=save, height = 4, width = 6, type = 'sample')
 figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
                              #vjust = 0, hjust = 0, 
                              font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
 figure
 
-png(paste0(figure_path, 'S14_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
+png(paste0(figure_path, 'S15_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
 print(figure)
 dev.off()
 ```
 
-# Supplement Figure 15 | het/hom ratios of the two-way mixing results
+# Supplement Figure 16 | het/hom ratios of the two-way mixing results
 ```{r}
 save = T
-figS15_two_way_mixing_het_hom_ratio('S15', save=save, height = 4, width = 6)
+figS16_two_way_mixing_het_hom_ratio('S16', save=save, height = 4, width = 6)
 ```
 
-# Supplement Figure 16 | N-way mixing results CHARR. vs. Freemix Score
+# Supplement Figure 17 | N-way mixing results CHARR. vs. Freemix Score
 ```{r}
 save = T
-figS16_n_way_mixing('S16', save=save, height = 6, width = 8)
+figS17_n_way_mixing('S17', save=save, height = 6, width = 8)
 ```
 
-# Supplement Figure 17 | N-way mixing boxplot
+# Supplement Figure 18 | N-way mixing boxplot
 ```{r}
 save = T
-figS17_n_way_box_plot('S17_gnomad_', save=save, height = 3.5, width = 7)
+figS18_n_way_box_plot('S18_gnomad_', save=save, height = 3.5, width = 7)
 ```
 
-# Supplement Figure 18 | two-way vs. N-way mixing results
+# Supplement Figure 19 | two-way vs. N-way mixing results
 ```{r}
 save = T
-figS18_2_way_vs_n_way('S18', save=save, height = 4.5, width = 9, type = 'gnomAD')
-figS18_2_way_vs_n_way('S18', save=save, height = 4.5, width = 9, type = 'sample')
+figS19_2_way_vs_n_way('S19', save=save, height = 4.5, width = 9, type = 'gnomAD')
+figS19_2_way_vs_n_way('S19', save=save, height = 4.5, width = 9, type = 'sample')
 ```
