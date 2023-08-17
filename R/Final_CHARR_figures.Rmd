@@ -314,6 +314,7 @@ figS9_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'S9', save=save, height = 4
 ```
 
 
+
 ```{r}
 v2_long_data <- v2_dp20_long %>%
   filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
@@ -322,7 +323,7 @@ v2_long_data <- v2_dp20_long %>%
   select(value, ref_AF, age_bin, version, age, label) 
 print('v2 LM')
 print(summary(lm(value ~ age, data = v2_long_data)))
-v3_long_data <- v3_long_data %>%
+v3_long_data <- v3_dp20_long %>%
   filter(ref_AF == 'ref-AF: (10%, 90%)') %>%
   mutate(age_bin = factor(get_age_bins(age), levels = age_bins),
          version = 'gnomAD v3 (WGS)') %>%
@@ -332,9 +333,54 @@ print('v3 LM CHARR ~ Age')
 print(summary(lm(value ~ age, data = v3_long_data )))
 print('v3 LM CHARR ~ Age + PCR')
 print(summary(lm(value ~ age + pcr_free, data = v3_long_data %>% filter(pcr_free != 'Missing'))))
+print('v3 LM CHARR ~ Age')
+print(summary(lm(value ~ age, data = v3_long_data %>% filter(pcr_free != 'Missing'))))
 ```
 
-# Supplement Figure 10
+```{r}
+pcr_data <- v3_long_data %>% filter((pcr_free != 'Missing') & !is.na(age))
+# Fit linear model to regress out 'am' from 'hp'
+model <- lm(value~pcr_free, data = pcr_data)
+
+# Calculate residuals
+residuals <- residuals(model)
+
+# Create a new data frame with residuals and corresponding mpg values
+residuals_data <- data.frame(age = pcr_data$age, residuals = residuals)
+
+# Plot residuals as a function of mpg
+ggplot(residuals_data, aes(x = age, y = residuals)) +
+  # geom_point(color='#045494', alpha=0.5) +
+  geom_raster(aes(fill = density)) +
+  # geom_density_2d() +
+  geom_smooth(method = "lm", se = FALSE, color='black') +
+  # scale_y_log10() +
+  labs(x = "Age",
+       y = "Residuals (CHARR ~ PCR status)", 
+       color = "Count") + themes
+```
+```{r}
+pcr_data <- v3_dp20 %>% filter((pcr_free != 'Missing') & !is.na(age))
+model <- lm(mean_AB_snp_biallelic_af_adjust_10~pcr_free, data = pcr_data)
+residuals <- residuals(model)
+residuals_data <- data.frame(age = pcr_data$age, residuals = residuals)
+figure <- residuals_data %>% 
+  mutate(age_bin  = factor(get_age_bins(age), levels = age_bins) )%>%
+  ggplot + aes(x = age_bin, y = residuals, group=age_bin) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", se = FALSE, color='black') +
+  # scale_y_log10() +
+  labs(x = "Age",
+       y = "Residuals (CHARR ~ PCR status)", 
+       color = "Count") + themes
+figure
+png(paste0(figure_path, 'S10_gnomad_contam_dp20_age_vs_charr_pcr_residual.png'), height = 4, width = 6, units = 'in', res = 300)
+print(figure)
+dev.off()
+```
+
+
+# Supplement Figure 11
 ```{r}
 p<- v3_dp20 %>%
   mutate(pcr_free = factor(pcr_free, levels=c('PCR-Free', 'PCR', 'Missing'), labels=c('PCR-Free', 'PCR+', 'Missing'))) %>%
@@ -346,74 +392,74 @@ p<- v3_dp20 %>%
   scale_fill_brewer(palette = 'Dark2') + 
   themes
 p
-png(paste0(figure_path, 'S10_gnomad_v3_charr_bimodality_pcr_free_hist_all.png'), height = 4, width = 6, units = 'in', res = 300)
+png(paste0(figure_path, 'S11_gnomad_v3_charr_bimodality_pcr_free_hist_all.png'), height = 4, width = 6, units = 'in', res = 300)
 print(p)
 dev.off()
 ```
 
 
-# Supplement Figure 11 | Freemix score old vs. recomputed version
+# Supplement Figure 12 | Freemix score old vs. recomputed version
 ```{r}
 save <- T
 hgdp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>% 
   mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external'))) 
-figS11_hgdp_freemix_before_after(hgdp, 'S11', save = save, height = 4, width = 6)
+figS12_hgdp_freemix_before_after(hgdp, 'S12', save = save, height = 4, width = 6)
 ```
 
-# Supplement Figure 12 | CHARR vs. Freemix Score before and after on HGDP samples
+# Supplement Figure 13 | CHARR vs. Freemix Score before and after on HGDP samples
 ```{r}
 save <- T
-figS12_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S12', save=save, height = 5, width = 7.5)
+figS13_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S13', save=save, height = 5, width = 7.5)
 ```
 
-# Supplement Figure 13 | HGDP sample selection
+# Supplement Figure 14 | HGDP sample selection
 ```{r}
 save = T
-fig13_hgdp_sample_selection('S13', save=save, height = 4, width = 10)
+fig14_hgdp_sample_selection('S14', save=save, height = 4, width = 10)
 ```
 
-# Supplement Figure 14 | CHARR vs. Freemix Score before and after decontamination on the selected HGDP samples
+# Supplement Figure 15 | CHARR vs. Freemix Score before and after decontamination on the selected HGDP samples
 ```{r}
 save= T
-figS14_sample_decontamination('S14', save=save, height = 4, width = 7.5)
+figS15_sample_decontamination('S15', save=save, height = 4, width = 7.5)
 ```
 
-# Supplement Figure 15 | 2 way freemixscore vs. CHARR color by the truth
+# Supplement Figure 16 | 2 way freemixscore vs. CHARR color by the truth
 ```{r}
 save = T
-figure1 = figS15_2_way_color_by_truth('S15A', save=save, height = 4, width = 6, type = 'gnomAD')
-figure2 = figS15_2_way_color_by_truth('S15B', save=save, height = 4, width = 6, type = 'sample')
+figure1 = figS16_2_way_color_by_truth('S16A', save=save, height = 4, width = 6, type = 'gnomAD')
+figure2 = figS16_2_way_color_by_truth('S16B', save=save, height = 4, width = 6, type = 'sample')
 figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
                              #vjust = 0, hjust = 0, 
                              font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
 figure
 
-png(paste0(figure_path, 'S15_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
+png(paste0(figure_path, 'S16_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
 print(figure)
 dev.off()
 ```
 
-# Supplement Figure 16 | het/hom ratios of the two-way mixing results
+# Supplement Figure 17 | het/hom ratios of the two-way mixing results
 ```{r}
 save = T
-figS16_two_way_mixing_het_hom_ratio('S16', save=save, height = 4, width = 6)
+figS17_two_way_mixing_het_hom_ratio('S17', save=save, height = 4, width = 6)
 ```
 
-# Supplement Figure 17 | N-way mixing results CHARR. vs. Freemix Score
+# Supplement Figure 18 | N-way mixing results CHARR. vs. Freemix Score
 ```{r}
 save = T
-figS17_n_way_mixing('S17', save=save, height = 6, width = 8)
+figS18_n_way_mixing('S18', save=save, height = 6, width = 8)
 ```
 
-# Supplement Figure 18 | N-way mixing boxplot
+# Supplement Figure 19 | N-way mixing boxplot
 ```{r}
 save = T
-figS18_n_way_box_plot('S18_gnomad_', save=save, height = 3.5, width = 7)
+figS19_n_way_box_plot('S19_gnomad_', save=save, height = 3.5, width = 7)
 ```
 
-# Supplement Figure 19 | two-way vs. N-way mixing results
+# Supplement Figure 20 | two-way vs. N-way mixing results
 ```{r}
 save = T
-figS19_2_way_vs_n_way('S19', save=save, height = 4.5, width = 9, type = 'gnomAD')
-figS19_2_way_vs_n_way('S19', save=save, height = 4.5, width = 9, type = 'sample')
+figS20_2_way_vs_n_way('S20', save=save, height = 4.5, width = 9, type = 'gnomAD')
+figS20_2_way_vs_n_way('S20', save=save, height = 4.5, width = 9, type = 'sample')
 ```

@@ -67,8 +67,8 @@ get_n_hom_var_table <- function(data){
 
 get_age_bins <- function(age){
   bins = case_when(
-    age <= 10  ~ '0-10', 
-    age <= 20  ~ '10-20', 
+    # age <= 10  ~ '0-10', 
+    age <= 20  ~ '0-20', 
     age <= 30  ~ '20-30', 
     age <= 40  ~ '30-40', 
     age <= 50  ~ '40-50', 
@@ -79,7 +79,7 @@ get_age_bins <- function(age){
   )
   return(bins)
 }
-age_bins <- c('0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '> 80')
+age_bins <- c('0-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '> 80')
 dp_names <- c('no' = 'No DP filters', '10' = '10 < DP < 100', '20' = '20 < DP < 100', '_all'='')
 
 # Full figure function
@@ -605,7 +605,7 @@ figS9_v2_v3_age_vs_charr <- function(v2_long_data, v3_long_data, name, save=TRUE
     labs(x = 'Age', y = 'CHARR Score', color = 'Age') +
     geom_boxplot() + 
     coord_flip() +
-    scale_y_log10() +
+    # scale_y_log10() +
     themes +  theme_classic() +
     theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
           legend.text = element_text(family = 'Arial', size = 12),
@@ -621,7 +621,7 @@ figS9_v2_v3_age_vs_charr <- function(v2_long_data, v3_long_data, name, save=TRUE
   return(figure)
 }
 
-figS11_hgdp_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, width = 6){
+figS12_hgdp_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, width = 6){
   figure <- hgdp %>%
     filter(!is.na(recomputed_contamination)) %>%
     ggplot + aes(x = contamination, y = recomputed_contamination, color = label) +
@@ -644,7 +644,7 @@ figS11_hgdp_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, w
   return(figure)
 }
 
-figS12_hgdp_charr_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, width = 7.5){
+figS13_hgdp_charr_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, width = 7.5){
   pop_colors['Broad (gnomAD)'] <- '#D6CFC7'
   pop_colors['mid']  <- pop_colors['mde'] 
   pop_names['mid']  <- pop_names['mde']
@@ -685,7 +685,7 @@ figS12_hgdp_charr_freemix_before_after <-function(hgdp, name, save=TRUE, height 
   return(figure)
 }
 
-fig13_hgdp_sample_selection <- function(name, save=TRUE, height = 4, width = 7.5){
+fig14_hgdp_sample_selection <- function(name, save=TRUE, height = 4, width = 7.5){
   id <- c('0281', '0021', '0105', '0118', '0341', '0768', '1096', '1190', '1243', '0714', '1371', '0529', '0669', '1396', '1385', '0689', '0688', '0610', '0726', '0690', '0931', '0944', '1092', '1406', '0905', '0875', '0703', '1009', '1050', '0845')
   hgdp_id <- paste0('HGDP0', id)
   sub <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>% 
@@ -731,7 +731,7 @@ fig13_hgdp_sample_selection <- function(name, save=TRUE, height = 4, width = 7.5
   
 }
 
-figS14_sample_decontamination <- function(name, save=TRUE, height = 4, width = 7.5){
+figS15_sample_decontamination <- function(name, save=TRUE, height = 4, width = 7.5){
   decontam_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_decontaminated_full_30_samples.csv'), sep='\t')
   decontam_long <- decontam_data %>% 
     select(s, pop, vbid=recomputed_contamination, charr=mean_AB_snp_biallelic_af_adjust_10) %>% 
@@ -755,7 +755,7 @@ figS14_sample_decontamination <- function(name, save=TRUE, height = 4, width = 7
   return(figure)
 }
 
-figS15_2_way_color_by_truth <- function(name, save=TRUE, height = 5, width = 7.5, type='gnomAD'){
+figS16_2_way_color_by_truth <- function(name, save=TRUE, height = 5, width = 7.5, type='gnomAD'){
   mixed_data_2 <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples.csv'), sep='\t')
   if(type != 'gnomAD'){
     mixed_data_2 <- mixed_data_2 %>%
@@ -779,7 +779,7 @@ figS15_2_way_color_by_truth <- function(name, save=TRUE, height = 5, width = 7.5
   return(p)
 }
 
-figS16_two_way_mixing_het_hom_ratio <- function(name, save=TRUE, height = 4, width = 7.5){
+figS17_two_way_mixing_het_hom_ratio <- function(name, save=TRUE, height = 4, width = 7.5){
   contam_rates <- c('0.5%', '1%', '2%', '5%', '10%')
   names(contam_rates) <- c(0.005, 0.01, 0.02, 0.05, 0.1)
   mixed_data <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples.csv'), sep='\t')
@@ -806,7 +806,7 @@ figS16_two_way_mixing_het_hom_ratio <- function(name, save=TRUE, height = 4, wid
   return(figure)
 }
 
-figS17_n_way_mixing <- function(name, save=TRUE, height = 4, width = 7.5){
+figS18_n_way_mixing <- function(name, save=TRUE, height = 4, width = 7.5){
   callrate_filtered_charr <- mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr.csv'), sep='\t')%>%
     mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
            main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) 
@@ -838,7 +838,7 @@ figS17_n_way_mixing <- function(name, save=TRUE, height = 4, width = 7.5){
   return(figure)
 }
 
-figS18_n_way_box_plot <- function(name, save=TRUE, height = 3.5, width = 7){
+figS19_n_way_box_plot <- function(name, save=TRUE, height = 3.5, width = 7){
   # callrate_filtered_charr <- mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr.csv'), sep='\t')%>%
   callrate_filtered_charr <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr_gnomad_0.csv'), sep='\t')%>%
     mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
@@ -889,7 +889,7 @@ figS18_n_way_box_plot <- function(name, save=TRUE, height = 3.5, width = 7){
   return(figure)
 }
 
-figS19_2_way_vs_n_way <- function(name, save=TRUE, height = 5, width = 7.5, type = 'gnomAD'){
+figS20_2_way_vs_n_way <- function(name, save=TRUE, height = 5, width = 7.5, type = 'gnomAD'){
   mixed_data_2 <- read.csv(paste0(data_path, 'charr_simulation_hgdp_2_way_mixed_samples_full_150_samples.csv'), sep='\t')
   mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples.csv'), sep='\t')
   mixed_full <- mixed_data_2 %>%
