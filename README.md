@@ -16,7 +16,9 @@ CHARR, Contamination from Homozygous Alternate Reference Reads, a contamination 
 We used data from the Genome Aggregation Database, including:
 - 59,765 release whole genome samples in gnomAD v3 joint called in (Chen et al., 2022). 58,986 samples sequenced at the Broad Institute + 779 HGDP samples
 - 102,063 release whole exome samples in gnomAD v2 joint called in (Karczewski et al., 2020). 103,027 samples from gnomAD v2, excluding 10 samples with fewer than 10,000 heterozygous variants and 954 samples with an old version of freemix used
-- 948 HGDP samples in gnomAD v3 joint called in (Chen et al., 2022) and described in (Koenig et al., 2023)
+- 948 HGDP samples in gnomAD v3 joint called in (Chen et al., 2022) and described in (Koenig et al., 2023) \
+
+All available at https://gnomad.broadinstitute.org/downloads
 
 ## Methods Overview
 
