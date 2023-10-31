@@ -18,16 +18,16 @@ pop_names['ami']  <- 'Amish'
 pop_colors['ami']  <- "#FFC0CB" 
 pop_names['afr']  <- "African" 
 
-themes = theme(plot.title = element_text(hjust = 0.5, color = 'Black', size = 10, face = 'bold'),
-               axis.text = element_text(color = 'Black', size = 10), 
-               axis.title = element_text(color = 'Black', size = 15, face = 'bold'), 
-               legend.title = element_text(color = 'Black', size = 12, face = 'bold'), 
-               legend.text = element_text(color = 'Black', size = 12), 
+themes = theme_classic(base_size=8) + theme(plot.title = element_text(family = 'Arial', hjust = 0.5, color = 'Black', face = 'bold'),
+               axis.text = element_text(family = 'Arial', color = 'Black'), 
+               axis.title = element_text(family = 'Arial', color = 'Black', face = 'bold'), 
+               legend.title = element_text(family = 'Arial', color = 'Black', face = 'bold'), 
+               legend.text = element_text(family = 'Arial', color = 'Black'), 
                legend.position = 'top', legend.box = 'vertical', 
-               strip.text = element_text(color = 'Black', size = 10), 
-               strip.background = element_rect( color = "black", size=0.5, linetype="solid") )
+               strip.text = element_text(family = 'Arial', color = 'Black', face = 'bold'), 
+               strip.background = element_rect( color = "black", size=0.5, linetype="solid") ) 
 library(R.utils)
-figure_path <- '~/Dropbox (Partners HealthCare)/contamination/rev_figures/'
+figure_path <- '~/Dropbox (Partners HealthCare)/submission/charr/revision_III/supp_PNGs/'
 data_path <- '~/Dropbox (Partners HealthCare)/contamination/data/'
 
 # functions
@@ -79,6 +79,7 @@ get_age_bins <- function(age){
   )
   return(bins)
 }
+
 age_bins <- c('0-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '> 80')
 dp_names <- c('no' = 'No DP filters', '10' = '10 < DP < 100', '20' = '20 < DP < 100', '_all'='')
 
@@ -110,13 +111,8 @@ get_figure_charr_freemix_by_ref_AF <- function(data, version, var_type, DP, save
     geom_point(alpha=0.8, size = 1) + 
     geom_abline(slope = 1, intercept = 0, lty=2) +
     scale_color_manual(values = c('#045494', 'gray')) +
-    themes +  theme_classic() + 
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes +  
+    theme(legend.position = 'top') + 
     facet_wrap(.~ref_AF, scale = 'free') 
   print(var_cnt_data)
   # +
@@ -132,8 +128,8 @@ get_figure_charr_freemix_by_ref_AF <- function(data, version, var_type, DP, save
   return(figure)
 }
 
-# Figure 3 function 
-fig3_n_way_comparison <- function(name, save=TRUE, height = 3.5, width = 5.5){
+# Figure 7 function 
+fig7_n_way_comparison <- function(name, save=TRUE, height = 3.5, width = 5.5){
   callrate_filtered_charr <- mixed_data_n <- read.csv(paste0(data_path, 'charr_simulation_hgdp_n_way_mixed_samples_full_150_samples_callrate_filtered_charr.csv'), sep='\t')%>%
     mutate(callrate_filtered = if_else(str_detect(AF_type, '\\('), 'Callrate filtered - Yes', 'Callrate filtered - No'),
            main_type = if_else(str_detect(AF_type, '\\('), str_split(AF_type, ' \\(') %>% map_chr(., 1), AF_type)) 
@@ -151,10 +147,11 @@ fig3_n_way_comparison <- function(name, save=TRUE, height = 3.5, width = 5.5){
     group_by(AF_type, contam_rate) %>%
     dplyr::summarize(
       std = sd(charr),
-      mean = mean(charr)
+      mean = mean(charr),
+      total = n()
     ) %>%
-    mutate(y_max = mean + std,
-           y_min = mean - std)
+    mutate(y_max = mean + 1.96 * std/sqrt(total),
+           y_min = mean - 1.96 * std/sqrt(total))
   figure <- callrate_filtered_sum %>%
     ggplot + 
     geom_pointrange(aes( x=contam_rate, 
@@ -164,7 +161,7 @@ fig3_n_way_comparison <- function(name, save=TRUE, height = 3.5, width = 5.5){
                          ymax = y_max,
                          ymin=y_min), size = 0.25)+
     geom_abline(slope = 1, intercept = 0, lty =2) + 
-    scale_color_manual(breaks=c('CHARR Score', 'Freemix Score'), labels=c('CHARR Score', 'Freemix Score'), values = c( '#D95F02', '#1B9E77')) +
+    scale_color_manual(breaks=c('CHARR Score', 'Freemix Score'), labels=c('CHARR Score', 'Freemix Score'), values = c( '#CC3311', '#004488')) +
     scale_y_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), limit = c(0, 0.11)) +
     scale_x_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1)) +
     labs(x='True Contamination Rate', y='Contamination estimate', color=NULL, fill = NULL, alpha = 'Callrate filtered') +
@@ -190,15 +187,12 @@ figS1_n_hom_var_RR_above_0 <- function(save,  height = 4, width = 6){
     labs(x = 'Number of homozygous variants with RR > 0',  y=NULL, color = NULL, fill = NULL) +
     geom_histogram(bins = 50, alpha=0.5) + 
     scale_x_log10(label = comma)+ 
-    scale_color_brewer(palette = 'Dark2') + 
-    scale_fill_brewer(palette = 'Dark2') +
-    themes + theme_classic() +   
-    theme(axis.title = element_text(family = 'Arial', size = 12),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = c(0.8,0.8),
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+    # scale_color_manual(breaks=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), labels=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), values = c( '#F4B942', '#6B9AC4')) +
+    # scale_fill_manual(breaks=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), labels=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), values = c( '#F4B942', '#6B9AC4')) +
+    scale_color_manual(breaks=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), labels=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), values = c( '#cc3311', '#004488')) +
+    scale_fill_manual(breaks=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), labels=c('CHARR score > 0.5%', 'CHARR score < 0.5%'), values = c( '#cc3311', '#004488')) +
+    theme_classic(base_size=8) +  themes + 
+    theme(legend.position = c(0.8,0.8)) 
   if(save){
     png(paste0(figure_path, 'S1_gnomad_v3_contam_n_hom_var_RR_above_0.png'), height = height, width = width, units = 'in', res = 300)
     print(figure)
@@ -239,15 +233,8 @@ get_figure_corr_by_ref_AF <- function(data, version, var_type, DP, save=TRUE){
     geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
+    theme(legend.position = 'top') + 
     facet_wrap(~dp_filter)+
     annotate(geom='text', x=Inf, y=-Inf,label=expression(p.values<10^-100), family = 'Arial', size=4, hjust = 1, vjust=-0.8)
   
@@ -309,15 +296,8 @@ figS3A_get_figure_lm_by_ref_AF <- function(data, version, var_type, DP, name, in
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     geom_hline(aes(yintercept = ref_line), lty=2) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
+    theme(legend.position = 'top') + 
     facet_grid(term~dp_filter, scale = 'free')
   if(save){
     suffix = if_else(intercept, '', '_no_intercept')
@@ -342,15 +322,8 @@ figS3B_get_figure_lm_by_ref_AF <- function(data, version, var_type, DP, name, in
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     geom_hline(aes(yintercept = ref_line), lty=2) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
+    theme(legend.position = 'top') + 
     facet_grid(term~dp_filter, scale = 'free')
   if(save){
     suffix = if_else(intercept, '', '_no_intercept')
@@ -411,15 +384,8 @@ figS4_v3_snp_indel_all_lm <- function(long_data, version, name, save, height = 6
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     geom_hline(aes(yintercept = ref_line), lty=2) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
+    theme(legend.position = 'top') + 
     facet_grid(term~var_type, scale = 'free')
   if(save){
     png(paste0(figure_path, name, '_gnomad_', version,'_contam_dp20_linear_model.png'), 
@@ -445,13 +411,7 @@ figS5_v2_ref_af_source <- function(long_data, var_cnt_data, name, save=TRUE, hei
     geom_point(alpha=0.8, size = 1) + 
     geom_abline(slope = 1, intercept = 0, lty=2) +
     scale_color_manual(values = c('#045494', 'gray')) +
-    themes +  theme_classic() + 
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position='top',
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
     facet_grid(AF_source~ref_AF, scale = 'free') 
   # +
   # geom_label(data = var_cnt_data %>% filter(ref_AF != 'ref-AF: (5%, 95%)'), aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),x = 0.025, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
@@ -488,15 +448,7 @@ figS6_v2_ref_af_source_lm <- function(long_data, name, save=TRUE, height = 6, wi
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     geom_hline(aes(yintercept = ref_line), lty=2) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
     facet_grid(term~AF_source, scale = 'free')
   if(save){
     png(paste0(figure_path, name, '_gnomad_v2_contam_dp20_ref_af_source_linear_model.png'), height = height, width = width, units = 'in', res = 300)
@@ -518,13 +470,7 @@ figS7_v3_remove_age_gene <- function(long_data, var_cnt_data, name, save=TRUE, h
     geom_point(alpha=0.8, size = 1) + 
     geom_abline(slope = 1, intercept = 0, lty=2) +
     scale_color_manual(values = c('#045494', 'gray')) +
-    themes +  theme_classic() + 
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position='top',
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
     facet_grid(source~ref_AF, scale = 'free') 
   print(var_cnt_data)
   # +
@@ -563,15 +509,7 @@ figS8_v3_remove_age_gene_lm <- function(long_data, name, save=TRUE, height = 6, 
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     geom_hline(aes(yintercept = ref_line), lty=2) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
-          axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          axis.text.x = element_text(family = 'Arial', size = 10),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top',
-          strip.text = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
     facet_grid(term~source, scale = 'free')
   if(save){
     png(paste0(figure_path, name, '_gnomad_v3_contam_dp20_age_gene_linear_model.png'), height = height, width = width, units = 'in', res = 300)
@@ -606,12 +544,7 @@ figS9_v2_v3_age_vs_charr <- function(v2_long_data, v3_long_data, name, save=TRUE
     geom_boxplot() + 
     coord_flip() +
     # scale_y_log10() +
-    themes +  theme_classic() +
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 12),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
+    themes + 
     facet_grid(.~version, scale = 'free')
   if(save){
     png(paste0(figure_path, name, '_gnomad_contam_dp20_age_vs_charr.png'), height = height, width = width, units = 'in', res = 300)
@@ -627,13 +560,10 @@ figS12_hgdp_freemix_before_after <-function(hgdp, name, save=TRUE, height = 4, w
     ggplot + aes(x = contamination, y = recomputed_contamination, color = label) +
     labs(x = 'Old', y = 'Recomputed', color = 'Sequencing site') +
     geom_point(alpha=0.8, size = 1) + 
-    geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
+    geom_abline(slope = 1, intercept = 0, lty=2) +
     scale_color_manual(values = c('#045494', 'orange', 'gray') ) +
-    themes +  theme_classic() + 
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.position='None',
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) 
+    themes + 
+    theme(legend.position='None')
   # +
   #   annotate(geom='text', x=0.05, y=0.045, label='y=x', family = 'Arial', size=6)
   if(save){
@@ -668,13 +598,7 @@ figS13_hgdp_charr_freemix_before_after <-function(hgdp, name, save=TRUE, height 
     geom_point(alpha=0.8, size = 2) + 
     geom_abline(slope = 1, intercept = 0, lty=2, size = 1) +
     scale_color_manual(values = pop_colors, breaks = c('afr', 'amr', 'eas', 'mid', 'nfe', 'oth', 'sas'), labels = c('AFR', 'AMR', 'EAS', 'MID', 'NFE', 'OTH', 'SAS')) +
-    themes +  theme_classic() + 
-    theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
-          legend.text = element_text(family = 'Arial', size = 10),
-          legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
-          legend.position = 'top', legend.box="vertical",
-          axis.text = element_text(family = 'Arial', size = 12),
-          strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) +
+    themes + 
     # annotate(geom='text', x=0.045, y=0.05, label='y=x', family = 'Arial', size=6) + 
     facet_grid(~Version) 
   if(save){
@@ -770,7 +694,7 @@ figS16_2_way_color_by_truth <- function(name, save=TRUE, height = 5, width = 7.5
     scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
     scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
     scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
-    labs(x='Freemix Score', y='CHARR Score', color='True Contamination Rate') + themes
+    labs(x='Freemix Score', y='CHARR Score', color='True Contamination Rate') + themes 
   if(save){
     png(paste0(figure_path, name, '_hgdp_2_way_mixed_150_samples_', type ,'_AF.png'), height = height, width = width, units = 'in', res = 300)
     print(p)
@@ -817,18 +741,13 @@ figS18_n_way_mixing <- function(name, save=TRUE, height = 4, width = 7.5){
                  color=factor(contam_rate, levels=c(0.005, 0.01, 0.02, 0.05, 0.1), labels = c('0.5%', '1.0%', '2.0%', '5.0%', '10.0%'))) +
     geom_point(size=2 )+
     geom_abline(slope = 1, intercept = 0, lty =2) + 
-    theme_classic()+ 
+    themes + 
     scale_color_manual(values = c('#e0f3f8', '#abd9e9', '#74add1', '#4575b4', '#313695')) +
     scale_y_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.13) ) +
     scale_x_continuous(label = scales::percent_format(accuracy=0.1), breaks = c(0.005, 0.01, 0.02, 0.05, 0.1), minor_breaks = NULL, limits = c(0, 0.13) ) +
     labs(x='Freemix Score', y='CHARR Score', color='True Contamination Rate') + themes +
     theme(axis.line = element_line(colour = "black"),
-          axis.text.x = element_text(angle=90, size = 10),
-          axis.text.y = element_text(size = 10),
-          strip.text = element_text(size=12),
-          panel.grid.major = element_line(linetype="solid",size=0.3),
-          legend.position = 'top',
-          legend.text = element_text(size = 12)) +
+          axis.text.x = element_text(angle=90)) +
     facet_grid(callrate_filtered ~ main_type) 
   if(save){
     png(paste0(figure_path, name, '_hgdp_n_way_mixed_callrate_filtered_charr_vs_vbid.png'), height = height, width = width, units = 'in', res = 300)
@@ -869,8 +788,12 @@ figS19_n_way_box_plot <- function(name, save=TRUE, height = 3.5, width = 7){
     geom_boxplot(alpha = 0.5) +
     labs(x=NULL, y ='Contamination estimate', alpha = 'Callrate filtered', color = NULL, fill= NULL) + 
     scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
-    scale_color_brewer(palette='Dark2') +
-    scale_fill_brewer(palette='Dark2') +
+    scale_color_manual(breaks=c('Freemix Score', 'CHARR Score \n (gnomAD AF)', 'CHARR Score \n (local AF)', 'CHARR Score \n (local AF: 100% Callrate)'), 
+                       labels=c('Freemix Score', 'CHARR Score \n (gnomAD AF)', 'CHARR Score \n (local AF)', 'CHARR Score \n (local AF: 100% Callrate)'), 
+                       values = c( '#004488', '#f4cfa7', '#e18a50', '#cc3311')) +
+    scale_fill_manual(breaks=c('Freemix Score', 'CHARR Score \n (gnomAD AF)', 'CHARR Score \n (local AF)', 'CHARR Score \n (local AF: 100% Callrate)'), 
+                      labels=c('Freemix Score', 'CHARR Score \n (gnomAD AF)', 'CHARR Score \n (local AF)', 'CHARR Score \n (local AF: 100% Callrate)'), 
+                      values = c( '#004488', '#f4cfa7', '#e18a50', '#cc3311')) +
     facet_wrap(~contam_rate, ncol=3, scales = 'free', labeller = labeller(contam_rate = contam_rates)) +
     geom_hline(data = callrate_filtered_full, aes(yintercept = contam_rate), lty=2) +
     themes + 
@@ -906,7 +829,8 @@ figS20_2_way_vs_n_way <- function(name, save=TRUE, height = 5, width = 7.5, type
                  color=result_type,
                  pch=result_type) +
     geom_point(size=2) +
-    scale_color_brewer(palette = 'Dark2') +
+    scale_color_manual(breaks=c('n_way', '2_way'), labels=c('n_way', '2_way'), values = c( '#cc3311', '#004488')) +
+    scale_shape_manual(breaks=c('n_way', '2_way'), labels=c('n_way', '2_way'), values = c(17, 16)) +
     scale_y_continuous(label = scales::percent_format(accuracy=0.1)) +
     scale_x_continuous(label = scales::percent_format(accuracy=0.1)) +
     labs(x='Freemix Score', y='CHARR Score', pch='Mixing type', color = 'Mixing type') + 
@@ -916,7 +840,7 @@ figS20_2_way_vs_n_way <- function(name, save=TRUE, height = 5, width = 7.5, type
     geom_hline(data = mixed_full, aes(yintercept = contam_rate), lty=2) +
     geom_vline(data = mixed_full, aes(xintercept = contam_rate), lty=2) + 
     themes + 
-    theme(legend.position = c(.8,.4), legend.margin = margin(0,0,0,0, unit="cm"), legend.background = element_blank()) 
+    theme(legend.position = c(.85,.25), legend.margin = margin(0,0,0,0, unit="cm"), legend.background = element_blank()) 
   if(save){
     png(paste0(figure_path, name, '_hgdp_2_way_vs_n_way_mixed_',type,'_AF.png'), height = height, width = width, units = 'in', res = 300)
     print(p)
@@ -992,7 +916,7 @@ figS8_v3_snp_indel_all_archived <- function(data, version, name, DP, save=TRUE, 
       geom_point(alpha=0.8, size = 1) + 
       geom_abline(slope = 1, intercept = 0, lty=2) +
       scale_color_manual(values = c('#045494', 'gray')) +
-      themes +  theme_classic() + 
+      themes + 
       theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
             legend.text = element_text(family = 'Arial', size = 12),
             legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
@@ -1031,7 +955,7 @@ figS10_v3_snp_indel_all_corr_archived <- function(long_data, version, name, save
     geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
+    themes + 
     theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
           axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
           axis.text = element_text(family = 'Arial', size = 12),
@@ -1065,7 +989,7 @@ figS13_v2_ref_af_source_corr_archived <- function(long_data, name, save=TRUE, he
     geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
+    themes + 
     theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
           axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
           axis.text = element_text(family = 'Arial', size = 12),
@@ -1098,7 +1022,7 @@ figS16_v3_remove_age_gene_corr_archived <- function(long_data, name, save=TRUE, 
     geom_pointrange(aes(x = ref_AF, y = estimate, ymin = conf.low, ymax = conf.high, group = label, color = label)) + 
     geom_line(aes(x = ref_AF, y = estimate, group = label, color = label)) +
     scale_color_manual(values = c('#045494', 'gray') ) +
-    themes +  theme_classic() + 
+    themes + 
     theme(plot.title = element_text(hjust = 0.5, family = 'Arial', size = 15, face = 'bold'),  
           axis.title = element_text(family = 'Arial', size = 13, face = 'bold'),
           axis.text = element_text(family = 'Arial', size = 12),

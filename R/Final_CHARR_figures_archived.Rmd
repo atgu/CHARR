@@ -27,6 +27,23 @@ v3_dp20_all <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_
   filter(s %in% v3_meta$s)
 ```
 
+```{r}
+## PCR_info
+v3_pcr <- read.csv(paste0(data_path, 'rev_data/gnomad_v3_bimodality_check.csv'), sep='\t')
+hgdp_info <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv')) %>% 
+  filter(subsets.hgdp) %>% 
+  select(s, pcr = bergstrom.library_type, source=bergstrom.source) 
+v3_pcr <- v3_pcr %>%
+  merge(., hgdp_info, by = 's', all.x = T) %>%
+  dplyr::mutate(pcr_free = if_else(is.na(pcr_free), pcr, pcr_free)) %>%
+  mutate(pcr_free = if_else(is.na(pcr_free), 'Missing', pcr_free) )%>%
+  mutate(pcr_free = if_else(pcr_free %in% c('No', 'PCR'), 'PCR', pcr_free)) %>%
+  mutate(pcr_free = if_else(pcr_free %in% c('PCR-free', 'PCRfree'), 'PCR-Free', pcr_free)) %>%
+  select(s, pcr_free)
+v3_dp20 <- v3_dp20 %>%
+  merge(., v3_pcr, by = 's')
+```
+
 ### Convert to long format
 ```{r, message=FALSE, results='hide', warning=FALSE}
 v3_dp20_long <- convert_to_long_format(v3_dp20, 'v3')
@@ -90,50 +107,25 @@ figure <- main_data %>%
   geom_point(alpha=0.8, size = 1) + 
   geom_abline(slope = 1, intercept = 0, lty=2) +
   scale_color_manual(values = c('#045494', 'gray')) +
-  themes +  theme_classic(base_size=8) + 
-  theme(axis.title = element_text(face = 'bold'),
-        legend.title = element_text(face = 'bold'),
+  themes +  theme_classic() + 
+  theme(axis.title = element_text(family = 'Arial', size = 15, face = 'bold'),
+        legend.text = element_text(family = 'Arial', size = 12),
+        legend.title = element_text(family = 'Arial', size = 12, face = 'bold'),
         legend.position = 'top',
-        strip.text.x = element_text(face = 'bold')) + 
+        axis.text = element_text(family = 'Arial', size = 12),
+        strip.text.x = element_text(family = 'Arial', size = 10, face = 'bold')) + 
   facet_wrap(.~data_type, scale = 'free') 
 # +
 #   geom_label(data = main_var_cnt, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),
 #              x = 0.013, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
 #   annotate(geom='text', x= 0.048, y=Inf,vjust = 1, label='y=x', family = 'Arial', size=6)
 save <- T
-# if(save){
-#   pdf('~/Dropbox (Partners HealthCare)/submission/charr/revision_II/figures/PDFs/figure6.pdf', height = 105/in2mm, width = 174/in2mm, useDingbats=T)
-#   print(figure)
-#   dev.off()
-# }
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_II/figures/PDFs/figure6.pdf', plot=figure, device=cairo_pdf,
-       width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
-```
-
-#### gnomAD ASHG 2023 version 
-```{r}
-figure <- main_data %>%
-  ggplot + aes(x = contamination, y = mean_AB_snp_biallelic_af_adjust_10, color = label) +
-  labs(x = 'Freemix Score', y = paste0('CHARR Score'), color = 'Sequencing site') +
-  geom_point(alpha=0.8, size = 1) + 
-  geom_abline(slope = 1, intercept = 0, lty=2) +
-  scale_color_manual(values = c('#045494', 'gray')) +
-  themes +  theme_classic(base_size=8) + 
-  theme(axis.title = element_text(face = 'bold'),
-        legend.title = element_text(face = 'bold'),
-        legend.position = 'top',
-        strip.text.x = element_text(face = 'bold')) 
-# +
-#   geom_label(data = main_var_cnt, aes(label = paste('Mean(N_hom_var) = ', as.character(round(mean_n_var)))),
-#              x = 0.013, y = Inf, vjust = 1,  color = 'black', size = 3, family = 'Arial') +
-#   annotate(geom='text', x= 0.048, y=Inf,vjust = 1, label='y=x', family = 'Arial', size=6)
-save <- T
 if(save){
-  png('~/Desktop/figure6_for_ashg.png', width = 100/in2mm, height = 70/in2mm, units = 'in', res = 300)
+  png(paste0(figure_path, 'M2_gnomad_contam_dp20_ref10_no_label.png'), height = 4, width = 7.5, units = 'in', res = 300)
   print(figure)
   dev.off()
 }
+figure
 ```
 
 ```{r}
@@ -171,27 +163,16 @@ if(save){
 figure
 ```
 
-# Main Figure 7
+# Main Figure 3
 ```{r}
 save <- T
-figure <- fig7_n_way_comparison('M3', save=F, width = 114/in2mm, height = 70/in2mm)
-if(save){
-  png('~/Desktop/figure7_for_ashg.png', width = 100/in2mm, height = 70/in2mm, units = 'in', res = 300)
-  print(figure)
-  dev.off()
-}
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figure7.pdf', plot=figure, device=cairo_pdf,
-#        width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+fig3_n_way_comparison('M3', save=save, height = 4, width = 6.5)
 ```
 
 # Supplement Figure 1 | Number of high-quality homozygous variants with RR > 0
 ```{r}
 save <- T
-figure<- figS1_n_hom_var_RR_above_0(save=save, height = 70/in2mm, width = 114/in2mm)
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS1.pdf', plot=figure, device=cairo_pdf,
-       width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+figS1_n_hom_var_RR_above_0(save=save, height = 4, width = 6)
 ```
 
 # Table.S1 | Number of high-quality homozygous variants with RR > X & refAB > 10%
@@ -224,16 +205,13 @@ sum(hom_var$n_hom_var_refAB_above_10pct > 1000)
 # Supplement Figure 2 | gnomAD v3 with and without ref AF filter 
 ```{r}
 save <- T
-figure <- get_figure_charr_freemix_by_ref_AF(v3_dp20, version = 'v3', DP = '20', var_type =  'snp', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (0%, 100%)', 'ref-AF: (10%, 90%)'), height=70/in2mm, width=140/in2mm )
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS2.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+get_figure_charr_freemix_by_ref_AF(v3_dp20, version = 'v3', DP = '20', var_type =  'snp', save = save, filter = TRUE, sub_ref_AF = c('ref-AF: (0%, 100%)', 'ref-AF: (10%, 90%)'), height=4, width=7.5 )
 ```
 
 # Supplement Figure 3 | gnomAD v3 Linear regression with different DP filters
 ```{r, fig.width=4cm}
 intercept <- T
-save <- F
+save <- T
 s3a <- figS3_get_figure_lm_by_dp_ref_AF(long_data_no_dp = v3_no_dp_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))), 
                                 long_data_dp10 =  v3_dp10_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))),
                                 long_data_dp20 =  v3_dp20_long %>% mutate(label = factor(label, levels = c('Broad (gnomAD)', 'Sanger (HGDP)'), labels = c('Broad', 'Other'))), 
@@ -244,14 +222,11 @@ s3b <- figS3_get_figure_lm_by_dp_ref_AF(long_data_no_dp = v2_no_dp_long, long_da
 
 ```{r}
 save <- T
-figure = ggpubr::ggarrange(s3a, NULL, s3b, labels = c('(A) gnomAD v3 (WGS)', '', '(B) gnomAD v2 (WES)'), nrow=3, common.legend=TRUE, vjust = 0, hjust = 0, font.label = list(size = 8, color = "black", face = "bold", family = NULL),heights = c(0.18, 0.02, 0.18))
-figure = annotate_figure(figure, top = text_grob(paste0('CHARR score ~ Freemix score (SNP)'), face = 'bold', size = 8))
-png(paste0(figure_path, 'S3_lm_dp_filters.png'), height = 174/in2mm, width = 174/in2mm, units = 'in', res = 300)
+figure = ggpubr::ggarrange(s3a, NULL, s3b, labels = c('(A) gnomAD v3 (WGS)', '', '(B) gnomAD v2 (WES)'), nrow=3, common.legend=TRUE, vjust = 0, hjust = 0, font.label = list(size = 10, color = "black", face = "bold", family = NULL),heights = c(0.18, 0.02, 0.18))
+figure = annotate_figure(figure, top = text_grob(paste0('CHARR score ~ Freemix score (SNP)'), face = 'bold', size = 15))
+png(paste0(figure_path,'S3_gnomad_contam_dp_all_snp_linear_model.png'), height = 10, width = 10, units='in', res=300)
 print(figure)
 dev.off()
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS3.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 174/in2mm, units = "in", dpi = 300)
-figure
 ```
 
 # Supplement Figure 4 | gnomAD v3 CHARR vs. Freemix Score for SNPs INDELS and ALL linear model
@@ -259,10 +234,7 @@ figure
 save <- T
 v3_full <- rbind(v3_dp20 %>% select(-pop), v3_dp20_indel, v3_dp20_all) %>% mutate(var_type = rep(c('SNPs', 'INDELs', 'ALL'), each = 59765))
 v3_long_full <- convert_to_long_format(v3_full, 'v3')
-figure <- figS4_v3_snp_indel_all_lm(v3_long_full, 'v3', 'S4', save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS4.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS4_v3_snp_indel_all_lm(v3_long_full, 'v3', 'S4', save, height = 6, width = 10)
 ```
 
 # Supplement Figure 5 | gnomAD v2 different reference allele frequency sources
@@ -293,20 +265,14 @@ v2_dp20_long_data_full  %>%
 ```{r}
 save <- T
 print(v2_dp20_var_cnt_data_full)
-figure<- figS5_v2_ref_af_source(v2_dp20_long_data_full, v2_dp20_var_cnt_data_full, 'S5', save=save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS5.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS5_v2_ref_af_source(v2_dp20_long_data_full, v2_dp20_var_cnt_data_full, 'S5', save=save, height = 6, width = 9)
 ```
 
 
 # Supplement Figure 6 | gnomAD v2 different reference allele frequency sources linear regression
 ```{r}
 save <- T
-figure <- figS6_v2_ref_af_source_lm(long_data = v2_dp20_long_data_full, 'S6', save=save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS6.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS6_v2_ref_af_source_lm(long_data = v2_dp20_long_data_full, 'S6', save=save, height = 6, width = 10)
 ```
 
 # Supplement Figure 7 | gnomAD v3 with and without the 3 age genes:  ASXL1, TET2, DNMT3A
@@ -331,29 +297,20 @@ v3_dp20_var_cnt_data_full <- rbind(v3_dp20_var_cnt_data_age, v3_dp20_var_cnt_dat
 
 ```{r}
 save <- T
-figure <- figS7_v3_remove_age_gene(v3_dp20_long_data_full, v3_dp20_var_cnt_data_full, 'S7', save=save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS7.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS7_v3_remove_age_gene(v3_dp20_long_data_full, v3_dp20_var_cnt_data_full, 'S7', save=save, height = 6, width = 9)
 ```
 
 
 # Supplement Figure 8 | gnomAD v3 with and without the 3 age genes:  ASXL1, TET2, DNMT3A, linear regression
 ```{r}
 save <- T
-figure <- figS8_v3_remove_age_gene_lm(v3_dp20_long_data_full, 'S8', save=save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS8.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS8_v3_remove_age_gene_lm(v3_dp20_long_data_full, 'S8', save=save, height = 6, width = 10)
 ```
 
 # Supplement Figure 9 & Table S2 | Age vs. CHARR
 ```{r}
 save <- T
-figure <- figS9_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'S9', save=save, height = 70/in2mm, width = 140/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS9.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+figS9_v2_v3_age_vs_charr(v2_dp20_long, v3_dp20_long, 'S9', save=save, height = 4, width = 7.5)
 ```
 
 
@@ -380,49 +337,6 @@ print('v3 LM CHARR ~ Age')
 print(summary(lm(value ~ age, data = v3_long_data %>% filter(pcr_free != 'Missing'))))
 ```
 
-# Supplement Figure 10: PCR info vs. CHARR
-
-```{r}
-## PCR_info
-v3_pcr <- read.csv(paste0(data_path, 'rev_data/gnomad_v3_bimodality_check.csv'), sep='\t')
-hgdp_info <- read_tsv(paste0(data_path,'HGDP_meta_v1.tsv')) %>% 
-  filter(subsets.hgdp) %>% 
-  select(s, pcr = bergstrom.library_type, source=bergstrom.source) 
-v3_pcr <- v3_pcr %>%
-  merge(., hgdp_info, by = 's', all.x = T) %>%
-  dplyr::mutate(pcr_free = if_else(is.na(pcr_free), pcr, pcr_free)) %>%
-  mutate(pcr_free = if_else(is.na(pcr_free), 'Missing', pcr_free) )%>%
-  mutate(pcr_free = if_else(pcr_free %in% c('No', 'PCR'), 'PCR', pcr_free)) %>%
-  mutate(pcr_free = if_else(pcr_free %in% c('PCR-free', 'PCRfree'), 'PCR-Free', pcr_free)) %>%
-  select(s, pcr_free)
-v3_dp20 <- v3_dp20 %>%
-  merge(., v3_pcr, by = 's')
-```
-
-
-```{r}
-figure<- rbind(
-  v3_dp20 %>% filter(pcr_free == 'PCR-Free'),
-  v3_dp20 %>% filter(pcr_free == 'PCR'),
-  v3_dp20 %>% filter(pcr_free == 'Missing')
-) %>%
-  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, color = pcr_free, fill=pcr_free) +
-  labs(x = 'CHARR', y='Density', color='Sequencing Method', fill = 'Sequencing Method') +
-  geom_density(alpha=0.5) +
-  scale_x_log10(label=comma) +
-    scale_color_manual(breaks=c('PCR-Free', 'PCR', 'Missing'), labels=c('PCR-Free', 'PCR+', 'Missing'), values = c( '#004488', '#cc3311', '#DDDDDD')) +
-    scale_fill_manual(breaks=c('PCR-Free', 'PCR', 'Missing'), labels=c('PCR-Free', 'PCR+', 'Missing'), values = c( '#004488', '#cc3311', '#DDDDDD')) +
-  themes
-
-png(paste0(figure_path, 'S10_pcr.png'), height = 70/in2mm, width = 114/in2mm, units = 'in', res = 300)
-print(figure)
-dev.off()
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS10.pdf', plot=figure, device=cairo_pdf,
-       width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
-```
-
-# Supplement Figure S11 | PCR Free info vs. Age distribution
 ```{r}
 pcr_data <- v3_dp20 %>% filter((pcr_free != 'Missing') & !is.na(age))
 model <- lm(mean_AB_snp_biallelic_af_adjust_10~pcr_free, data = pcr_data)
@@ -437,14 +351,29 @@ figure <- residuals_data %>%
   labs(x = "Age",
        y = "Residuals (CHARR ~ PCR status)", 
        color = "Count") + themes
-png(paste0(figure_path, 'S11_pcr_age.png'), height = 70/in2mm, width = 114/in2mm, units = 'in', res = 300)
+figure
+png(paste0(figure_path, 'S10_gnomad_contam_dp20_age_vs_charr_pcr_residual.png'), height = 4, width = 6, units = 'in', res = 300)
 print(figure)
 dev.off()
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS11.pdf', plot=figure, device=cairo_pdf,
-#        width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
 ```
 
+
+# Supplement Figure 11
+```{r}
+p<- v3_dp20 %>%
+  mutate(pcr_free = factor(pcr_free, levels=c('PCR-Free', 'PCR', 'Missing'), labels=c('PCR-Free', 'PCR+', 'Missing'))) %>%
+  ggplot + aes(x = mean_AB_snp_biallelic_af_adjust_10, color = pcr_free, fill=pcr_free) +
+  labs(x = 'CHARR', y='Density', color='Sequencing Method', fill = 'Sequencing Method') +
+  geom_density(alpha=0.5) +
+  scale_x_log10(label=comma) +
+  scale_color_brewer(palette = 'Dark2') + 
+  scale_fill_brewer(palette = 'Dark2') + 
+  themes
+p
+png(paste0(figure_path, 'S11_gnomad_v3_charr_bimodality_pcr_free_hist_all.png'), height = 4, width = 6, units = 'in', res = 300)
+print(p)
+dev.off()
+```
 
 
 # Supplement Figure 12 | Freemix score old vs. recomputed version
@@ -452,88 +381,63 @@ figure
 save <- T
 hgdp <- read_tsv(paste0(data_path,'gnomad_v3_contamination_estimate_full_snp_bi_minimum_vds_af_adjust_dp20_100.tsv')) %>% 
   mutate(label = factor(label, labels = c('Broad (gnomAD)', 'Sanger (HGDP)', 'Other'), levels = c('broad', 'hgdp', 'external'))) 
-figure<- figS12_hgdp_freemix_before_after(hgdp, 'S12', save = save, height = 70/in2mm, width = 114/in2mm)
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS12.pdf', plot=figure, device=cairo_pdf,
-       width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+figS12_hgdp_freemix_before_after(hgdp, 'S12', save = save, height = 4, width = 6)
 ```
 
 # Supplement Figure 13 | CHARR vs. Freemix Score before and after on HGDP samples
 ```{r}
 save <- T
-figure <- figS13_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S13', save=save, height = 85/in2mm, width = 140/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS13.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 85/in2mm, units = "in", dpi = 300)
-figure
+figS13_hgdp_charr_freemix_before_after(hgdp %>% filter(s %in% v3_meta$s), 'S13', save=save, height = 5, width = 7.5)
 ```
 
 # Supplement Figure 14 | HGDP sample selection
 ```{r}
 save = T
-figure <- fig14_hgdp_sample_selection('S14', save=save, height = 70/in2mm, width = 140/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS14.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+fig14_hgdp_sample_selection('S14', save=save, height = 4, width = 10)
 ```
 
 # Supplement Figure 15 | CHARR vs. Freemix Score before and after decontamination on the selected HGDP samples
 ```{r}
 save= T
-figure <- figS15_sample_decontamination('S15', save=save, height = 70/in2mm, width = 114/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS15.pdf', plot=figure, device=cairo_pdf,
-#        width = 114/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+figS15_sample_decontamination('S15', save=save, height = 4, width = 7.5)
 ```
 
 # Supplement Figure 16 | 2 way freemixscore vs. CHARR color by the truth
 ```{r}
 save = T
-figure1 = figS16_2_way_color_by_truth('S16A', save=F, height = 4, width = 6, type = 'gnomAD')
-figure2 = figS16_2_way_color_by_truth('S16B', save=F, height = 4, width = 6, type = 'sample')
+figure1 = figS16_2_way_color_by_truth('S16A', save=save, height = 4, width = 6, type = 'gnomAD')
+figure2 = figS16_2_way_color_by_truth('S16B', save=save, height = 4, width = 6, type = 'sample')
 figure = ggpubr::ggarrange(figure1, figure2, ncol = 2, labels = c('(A): gnomAD AF', '(B): local AF'), common.legend = TRUE, vjust = 0.5, hjust=0,
                              #vjust = 0, hjust = 0, 
-                             font.label = list(size = 8, color = "black", face = "bold", family = 'Arial'))
-png(paste0(figure_path, 'S16_2_way_simulation.png'), height = 70/in2mm, width = 140/in2mm, units = 'in', res = 300)
+                             font.label = list(size = 13, color = "black", face = "bold", family = 'Arial'))
+figure
+
+png(paste0(figure_path, 'S16_hgdp_2_way_mixed_150_samples.png'), height = 4, width = 8, units = 'in', res = 300)
 print(figure)
 dev.off()
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS16.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
 ```
 
 # Supplement Figure 17 | het/hom ratios of the two-way mixing results
 ```{r}
 save = T
-figure <- figS17_two_way_mixing_het_hom_ratio('S17', save=save, height = 70/in2mm, width = 140/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS17.pdf', plot=figure, device=cairo_pdf,
-#        width = 140/in2mm, height = 70/in2mm, units = "in", dpi = 300)
-figure
+figS17_two_way_mixing_het_hom_ratio('S17', save=save, height = 4, width = 6)
 ```
 
 # Supplement Figure 18 | N-way mixing results CHARR. vs. Freemix Score
 ```{r}
 save = T
-figure <- figS18_n_way_mixing('S18', save=save, height = 114/in2mm, width = 174/in2mm)
-# ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS18.pdf', plot=figure, device=cairo_pdf,
-#        width = 174/in2mm, height = 114/in2mm, units = "in", dpi = 300)
-figure
+figS18_n_way_mixing('S18', save=save, height = 6, width = 8)
 ```
 
 # Supplement Figure 19 | N-way mixing boxplot
 ```{r}
 save = T
-figure <- figS19_n_way_box_plot('S19_gnomad_', save=save, height = 85/in2mm, width = 174/in2mm)
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS19.pdf', plot=figure, device=cairo_pdf,
-       width = 174/in2mm, height = 85/in2mm, units = "in", dpi = 300)
-figure
+figS19_n_way_box_plot('S19_gnomad_', save=save, height = 3.5, width = 7)
 ```
 
 # Supplement Figure 20 | two-way vs. N-way mixing results
 ```{r}
 save = T
-figure <- figS20_2_way_vs_n_way('S20', save=save, height = 85/in2mm, width = 174/in2mm, type = 'gnomAD')
+figS20_2_way_vs_n_way('S20', save=save, height = 4.5, width = 9, type = 'gnomAD')
 figS20_2_way_vs_n_way('S20', save=save, height = 4.5, width = 9, type = 'sample')
-ggsave(filename='~/Dropbox (Partners HealthCare)/submission/charr/revision_III/new_PDFs_to_submit/figureS20.pdf', plot=figure, device=cairo_pdf,
-       width = 174/in2mm, height = 85/in2mm, units = "in", dpi = 300)
-figure
 ```
